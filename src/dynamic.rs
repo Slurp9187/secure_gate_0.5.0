@@ -60,7 +60,7 @@ impl<T: ?Sized> Dynamic<T> {
 }
 
 #[cfg(feature = "zeroize")]
-impl<T: ?Sized + Clone + zeroize::Zeroize> Clone for Dynamic<T> {
+impl<T: Clone + zeroize::Zeroize> Clone for Dynamic<T> {
     fn clone(&self) -> Self {
         Dynamic::new_boxed(self.0.clone())
     }
