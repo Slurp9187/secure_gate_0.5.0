@@ -1,3 +1,4 @@
+use secure_gate_0_5_0::{fixed_secret, secure};
 use secure_gate_0_5_0::{Dynamic, Fixed};
 
 // tests/integration.rs
@@ -17,4 +18,14 @@ fn it_works() {
 
     println!("{key:?}"); // Fixed<[REDACTED]>
     println!("{pw:?}"); // Dynamic<[REDACTED]>
+}
+
+#[test]
+fn macros_work() {
+    fixed_secret!(TestKey, 16); // alias only — no From in macro
+    let key = TestKey::new([0u8; 16]);
+    assert_eq!(key.len(), 16);
+
+    let iv = secure!([u8; 12], [1u8; 12]);
+    assert_eq!(iv.len(), 12);
 }

@@ -4,12 +4,14 @@ extern crate alloc;
 
 mod dynamic;
 mod fixed;
+mod macros;
 
 #[cfg(feature = "zeroize")]
 mod zeroize;
 
+// Public types
 pub use dynamic::Dynamic;
 pub use fixed::Fixed;
 
-#[cfg(feature = "zeroize")]
-pub use zeroize::{DynamicZeroizing, FixedZeroizing};
+// src/lib.rs — add this line
+// pub use macros::{fixed_secret, secure};

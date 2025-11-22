@@ -12,7 +12,7 @@ use secrecy::SecretBox;
 pub type FixedZeroizing<T> = Zeroizing<T>;
 
 #[cfg(feature = "zeroize")]
-pub type DynamicZeroizing<T: ?Sized> = SecretBox<T>;
+pub type DynamicZeroizing<T> = SecretBox<T>;
 
 // Easy conversion
 #[cfg(feature = "zeroize")]
