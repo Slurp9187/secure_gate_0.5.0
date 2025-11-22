@@ -1,10 +1,34 @@
 # secure-gate
+
 Zero-cost, `no_std`-compatible secure wrappers for secrets — stack for fixed-size, heap for dynamic.
 
 ## Features
 
+| Feature  | Effect |
+|----------|--------|
+| `zeroize` | Enables wiping + auto-drop zeroing (on by default) |
+| `serde`  | Serialization support |
+
+- `no_std` + `alloc` compatible.
+- Redacted `Debug`.
+- Test coverage includes zero-cost, wiping, ergonomics, serde, macros.
+
+**Memory Safety Guarantees (when `zeroize` enabled)**:
+- Fixed-size secrets (`Fixed<T>`) use `zeroize::Zeroizing<T>` — stack-allocated, auto-zeroed.
+- Dynamic secrets (`Dynamic<T>`) use `secrecy::SecretBox<T>` — heap-allocated, leak-resistant.
+- On drop or `zeroize()`, `Vec<u8>` and `String` secrets are **completely deallocated** (not just zeroed).
+  - Verified via unsafe inspection: capacity drops to 0, buffer is freed.
+  - Stronger than full-capacity wiping — no slack memory remains.
+
+**Internal Usage of Dependencies**:
+- `Fixed<T>` uses `zeroize::Zeroizing<T>` for stack-allocated, auto-zeroing fixed-size secrets.
+- `Dynamic<T>` uses `secrecy::SecretBox<T>` for heap-allocated, leak-protected dynamic secrets.
+- Both forward `ZeroizeOnDrop` and `Zeroize` for seamless integration.
+
+** Fuzz Workflows
+
 | Feature        | Effect                                                                 |
-|----------------|------------------------------------------------------------------------|
+|:---------------|:-----------------------------------------------------------------------|
 | `zeroize`      | Enables zeroization via `secrecy` + `zeroize` (on by default)          |
 | `stack`        | Zero-allocation fixed-size secrets using `Zeroizing<T>` (on by default)|
 | `unsafe-wipe`  | Enables full allocation wiping (including spare capacity)             |
@@ -14,20 +38,7 @@ Zero-cost, `no_std`-compatible secure wrappers for secrets — stack for fixed-s
 - `no_std` + `alloc` compatible
 - Redacted `Debug` and `Serialize` output
 - Test coverage includes slack wiping and timing safety
-
-## Memory Safety Guarantees (when `zeroize` enabled)
-
-- Fixed-size secrets (`Fixed<T>`) use `zeroize::Zeroizing<T>` — stack-allocated, auto-zeroed.
-- Dynamic secrets (`Dynamic<T>`) use `secrecy::SecretBox<T>` — heap-allocated, leak-resistant.
-- On drop or `zeroize()`, `Vec<u8>` and `String` secrets are **completely deallocated** (not just zeroed).
-  - Verified via unsafe inspection: capacity drops to 0, buffer is freed.
-  - Stronger than full-capacity wiping — no slack memory remains.
-
-## Internal Usage of Dependencies
-
-- `Fixed<T>` uses `zeroize::Zeroizing<T>` for stack-allocated, auto-zeroing fixed-size secrets.
-- `Dynamic<T>` uses `secrecy::SecretBox<T>` for heap-allocated, leak-protected dynamic secrets.
-- Both forward `ZeroizeOnDrop` and `Zeroize` for seamless integration.
+- Initial "quick smoke" workflow passes all tests
 
 ## Installation
 
@@ -37,7 +48,6 @@ secure-gate = "0.5.0"
 ```
 
 With serde:
-
 ```toml
 secure-gate = { version = "0.5.0", features = ["serde"] }
 ```
@@ -50,15 +60,18 @@ use secure_gate::{Fixed, Dynamic, secure, fixed_alias};
 // Fixed-size key (stack when zeroize off)
 fixed_alias!(Aes256Key, 32);
 let key: Aes256Key = [0u8; 32].into();
+
 assert_eq!(key.len(), 32);
-key[0] = 1; // DerefMut
+key[0] = 1;  // DerefMut
 
 // Dynamic password (heap, full protection)
 let mut pw = Dynamic::<String>::new("hunter2".to_string());
+
 assert_eq!(pw.len(), 7);
-assert_eq!(&*pw, "hunter2"); // Deref
+assert_eq!(&*pw, "hunter2");  // Deref
+
 pw.push('!');
-pw.finish_mut(); // shrink_to_fit
+pw.finish_mut();  // shrink_to_fit
 
 // Macros
 let iv = secure!([u8; 16], [1u8; 16]);
@@ -113,8 +126,9 @@ dynamic_alias!(Payload, Vec<u8>);
 // Usage
 let pw: Password = Dynamic::new("hunter2".to_string());
 let token: Token = Dynamic::new_boxed(Box::new(vec![0u8; 32]));
+
 assert_eq!(pw.len(), 7);
-pw.push('!'); // DerefMut
+pw.push('!');  // DerefMut
 assert_eq!(&*pw, "hunter2!");
 ```
 
@@ -129,7 +143,6 @@ v0.5.0 is a clean break from v0.4.3's experimental API.
 - `unsafe-wipe` → Removed; safe by default.
 
 Example migration:
-
 ```rust
 // v0.4.3
 let pw: SecurePassword = "hunter2".into();
