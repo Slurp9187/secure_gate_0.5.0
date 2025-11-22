@@ -20,7 +20,7 @@ Major overhaul from v0.4.3's learning-phase API. Clean break for simplicity and 
 ### Added
 - True zero-cost for fixed-size secrets when `zeroize` off (no heap allocation).
 - `Deref` / `DerefMut` ergonomics — secrets borrow like normal types.
-- `secure!` and `fixed_secret!` macros for constructors and aliases.
+- `secure!` and `fixed_alias!` macros for constructors and aliases.
 - `into_inner()` for extraction.
 - `finish_mut()` with `shrink_to_fit` for `Dynamic<String>` / `Vec<u8>`.
 - `Clone` for `Dynamic<T>`.
@@ -67,10 +67,10 @@ secure-gate = { version = "0.5.0", features = ["serde"] }
 ## Quick Start
 
 ```rust
-use secure_gate::{Fixed, Dynamic, secure, fixed_secret};
+use secure_gate::{Fixed, Dynamic, secure, fixed_alias};
 
 // Fixed-size key (stack when zeroize off)
-fixed_secret!(Aes256Key, 32);
+fixed_alias!(Aes256Key, 32);
 let key: Aes256Key = [0u8; 32].into();
 
 assert_eq!(key.len(), 32);
@@ -96,28 +96,52 @@ assert_eq!(extracted, [1u8; 32]);
 
 ## Example Aliases
 
-Use `fixed_secret!` for domain-specific types:
+Use `fixed_alias!` for fixed-size types and `dynamic_alias!` for dynamic types. These generate self-documenting aliases.
+
+### Fixed-Size (Stack-Optimized)
 
 ```rust
-use secure_gate::fixed_secret;
+use secure_gate::fixed_alias;
 
 // Crypto keys
-fixed_secret!(Aes256Key, 32);
-fixed_secret!(HmacSha256Key, 32);
-fixed_secret!(X25519SecretKey, 32);
+fixed_alias!(Aes256Key, 32);
+fixed_alias!(HmacSha256Key, 32);
+fixed_alias!(X25519SecretKey, 32);
 
 // Nonces and IVs
-fixed_secret!(AesGcmIv12, 12);
-fixed_secret!(AesCbcIv16, 16);
-fixed_secret!(ChaCha20Nonce12, 12);
-fixed_secret!(XChaCha20Nonce24, 24);
+fixed_alias!(AesGcmIv12, 12);
+fixed_alias!(AesCbcIv16, 16);
+fixed_alias!(ChaCha20Nonce12, 12);
+fixed_alias!(XChaCha20Nonce24, 24);
 
 // Salts
-fixed_secret!(Salt16, 16);
+fixed_alias!(Salt16, 16);
 
 // Usage
 let key: Aes256Key = [0u8; 32].into();
 let iv = AesGcmIv12::new(rand::random::<[u8; 12]>());
+```
+
+### Dynamic-Size (Heap-Optimized)
+
+```rust
+use secure_gate::dynamic_alias;
+
+// Strings and passwords
+dynamic_alias!(Password, String);
+dynamic_alias!(JwtSecret, String);
+
+// Byte vectors
+dynamic_alias!(Token, Vec<u8>);
+dynamic_alias!(Payload, Vec<u8>);
+
+// Usage
+let pw: Password = Dynamic::new("hunter2".to_string());
+let token: Token = Dynamic::new_boxed(Box::new(vec![0u8; 32]));
+
+assert_eq!(pw.len(), 7);
+pw.push('!');  // DerefMut
+assert_eq!(&*pw, "hunter2!");
 ```
 
 ## Migration from v0.4.3
