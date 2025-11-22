@@ -1,6 +1,8 @@
 // src/fixed.rs
 use core::ops::{Deref, DerefMut};
 
+use crate::{Expose, ExposeMut};
+
 pub struct Fixed<T>(pub T); // ← pub field
 
 impl<T> Fixed<T> {
@@ -27,6 +29,17 @@ impl<T> DerefMut for Fixed<T> {
 impl<T> core::fmt::Debug for Fixed<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str("Fixed<[REDACTED]>")
+    }
+}
+
+// src/fixed.rs — add these methods
+impl<T> Fixed<T> {
+    pub fn view(&self) -> Expose<'_, T> {
+        Expose(&self.0)
+    }
+
+    pub fn view_mut(&mut self) -> ExposeMut<'_, T> {
+        ExposeMut(&mut self.0)
     }
 }
 

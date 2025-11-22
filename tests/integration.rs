@@ -29,3 +29,28 @@ fn macros_work() {
     let iv = secure!([u8; 12], [1u8; 12]);
     assert_eq!(iv.len(), 12);
 }
+
+#[test]
+fn expose_views() {
+    let mut key = Fixed::new([0u8; 32]);
+    let mut pw = Dynamic::<String>::new("hunter2".to_string());
+
+    assert_eq!(key.len(), 32);
+    assert_eq!(pw.as_str(), "hunter2");
+
+    pw.push('!');
+    key[0] = 1;
+
+    assert_eq!(&*pw, "hunter2!");
+    assert_eq!(key[0], 1);
+
+    let s: &str = &pw;
+    assert_eq!(s, "hunter2!");
+}
+
+#[test]
+fn expose_slice() {
+    let slice = Dynamic::<[u8]>::new_boxed(Box::new([1u8; 16]));
+    let view = slice.view();
+    assert_eq!(view.as_slice(), &[1u8; 16]);
+}
