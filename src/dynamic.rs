@@ -59,16 +59,22 @@ impl<T: ?Sized> Dynamic<T> {
     }
 }
 
+// Clone — conditional on feature to avoid double-boxing
+#[cfg(not(feature = "zeroize"))]
+impl<T: Clone> Clone for Dynamic<T>
+where
+    T: ?Sized,
+{
+    fn clone(&self) -> Self {
+        Dynamic(self.0.clone())
+    }
+}
+
 #[cfg(feature = "zeroize")]
 impl<T: Clone + zeroize::Zeroize> Clone for Dynamic<T> {
     fn clone(&self) -> Self {
-        Dynamic::new_boxed(self.0.clone())
-    }
-}
-#[cfg(not(feature = "zeroize"))]
-impl<T: ?Sized + Clone> Clone for Dynamic<T> {
-    fn clone(&self) -> Self {
-        Dynamic::new_boxed(self.0.clone())
+        // Direct clone of SecretBox<T> — no new_boxed
+        Dynamic(self.0.clone())
     }
 }
 
