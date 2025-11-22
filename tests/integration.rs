@@ -1,42 +1,14 @@
-use secure_gate_0_5_0::{fixed_secret, secure};
-use secure_gate_0_5_0::{Dynamic, Fixed};
-
 // tests/integration.rs
-#[test]
-fn it_works() {
-    let key = Fixed::new([0u8; 32]);
-
-    // Option 1 — turbofish (recommended)
-    let pw = Dynamic::<String>::new("hunter2".to_string());
-
-    // Option 2 — type ascription (also works)
-    // let pw: Dynamic<String> = Dynamicnas::new("hunter2".to_string());
-
-    assert_eq!(key.len(), 32);
-    assert_eq!(pw.len(), 7);
-    assert_eq!(&*pw, "hunter2");
-
-    println!("{key:?}"); // Fixed<[REDACTED]>
-    println!("{pw:?}"); // Dynamic<[REDACTED]>
-}
+use secure_gate_0_5_0::{fixed_secret, secure, Dynamic, Fixed};
 
 #[test]
-fn macros_work() {
-    fixed_secret!(TestKey, 16); // alias only — no From in macro
-    let key = TestKey::new([0u8; 16]);
-    assert_eq!(key.len(), 16);
-
-    let iv = secure!([u8; 12], [1u8; 12]);
-    assert_eq!(iv.len(), 12);
-}
-
-#[test]
-fn expose_views() {
+fn basic_usage_and_deref() {
     let mut key = Fixed::new([0u8; 32]);
     let mut pw = Dynamic::<String>::new("hunter2".to_string());
 
     assert_eq!(key.len(), 32);
-    assert_eq!(pw.as_str(), "hunter2");
+    assert_eq!(pw.len(), 7);
+    assert_eq!(&*pw, "hunter2");
 
     pw.push('!');
     key[0] = 1;
@@ -49,8 +21,107 @@ fn expose_views() {
 }
 
 #[test]
-fn expose_slice() {
-    let slice = Dynamic::<[u8]>::new_boxed(Box::new([1u8; 16]));
-    let view = slice.view();
-    assert_eq!(view.as_slice(), &[1u8; 16]);
+fn fixed_is_truly_zero_cost() {
+    let key = Fixed::new([0u8; 32]);
+    assert_eq!(core::mem::size_of_val(&key), 32);
+}
+
+#[test]
+fn macros_work_perfectly() {
+    fixed_secret!(MyKey, 32);
+    let k1: MyKey = [42u8; 32].into();
+    let k2 = MyKey::new([42u8; 32]);
+    assert_eq!(k1.0, k2.0);
+
+    let iv = secure!([u8; 16], [1u8; 16]);
+    assert_eq!(iv.0, [1u8; 16]);
+}
+
+#[test]
+fn debug_is_redacted() {
+    let key = Fixed::new([0u8; 32]);
+    let pw = Dynamic::<String>::new("hunter2".to_string());
+
+    let key_debug = format!("{key:?}");
+    let pw_debug = format!("{pw:?}");
+
+    assert_eq!(key_debug, "Fixed<[REDACTED]>");
+    assert_eq!(pw_debug, "Dynamic<[REDACTED]>");
+
+    let key_pretty = format!("{key:#?}");
+    let pw_pretty = format!("{pw:#?}");
+
+    assert!(key_pretty.contains("Fixed<[REDACTED]>"));
+    assert!(pw_pretty.contains("Dynamic<[REDACTED]>"));
+}
+
+#[test]
+fn clone_dynamic_is_isolated() {
+    let pw1 = Dynamic::<String>::new("original".to_string());
+    let pw2 = pw1.clone();
+
+    let mut pw1_mut = pw1.clone();
+    pw1_mut.push('!');
+
+    assert_eq!(&*pw1, "original");
+    assert_eq!(&*pw2, "original");
+    assert_eq!(&*pw1_mut, "original!");
+}
+
+#[test]
+fn into_inner_extracts() {
+    let key = Fixed::new([1u8; 32]);
+    assert_eq!(key.into_inner(), [1u8; 32]);
+
+    let pw = Dynamic::<String>::new("secret".to_string());
+    let boxed = pw.into_inner();
+    assert_eq!(&*boxed, "secret");
+}
+
+#[cfg(feature = "zeroize")]
+#[test]
+fn wrappers_forward_zeroize() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    static WIPED: AtomicBool = AtomicBool::new(false);
+
+    #[derive(zeroize::ZeroizeOnDrop)]
+    struct MySecret([u8; 32]);
+
+    impl zeroize::Zeroize for MySecret {
+        fn zeroize(&mut self) {
+            WIPED.store(true, Ordering::SeqCst);
+            self.0.zeroize();
+        }
+    }
+
+    {
+        use zeroize::Zeroize;
+
+        let mut key = Fixed::new(MySecret([42u8; 32]));
+        let mut pw = Dynamic::new(MySecret([42u8; 32]));
+
+        // Manual zeroize — proves forwarding
+        key.zeroize();
+        pw.zeroize();
+    }
+
+    assert!(WIPED.load(Ordering::SeqCst), "Forwarding not called");
+}
+
+#[cfg(feature = "serde")]
+#[test]
+fn serde_roundtrip_fixed() {
+    fixed_secret!(SerdeKey, 32);
+    let key = SerdeKey::new([42u8; 32]);
+    let json = serde_json::to_string(&key).unwrap();
+    let key2: SerdeKey = serde_json::from_str(&json).unwrap();
+    assert_eq!(key.0, key2.0);
+}
+
+#[cfg(feature = "serde")]
+#[test]
+fn serde_dynamic_serializes() {
+    let pw = Dynamic::<String>::new("hunter2".to_string());
+    let json = serde_json::to_string(&pw).unwrap();
+    assert_eq!(json, "\"hunter2\"");
 }

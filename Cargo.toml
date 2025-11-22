@@ -7,6 +7,7 @@ edition = "2021"
 secrecy = { version = "0.10", default-features = false, optional = true }
 zeroize = { version = "1.8", default-features = false, optional = true, features = [
   "alloc",
+  "zeroize_derive",
 ] }
 serde = { version = "1.0", features = ["derive"], optional = true }
 
@@ -15,5 +16,5 @@ serde_json = "1.0"
 
 [features]
 default = ["zeroize"]
-zeroize = ["dep:zeroize", "dep:secrecy"]
+zeroize = ["dep:zeroize", "dep:secrecy", "zeroize/zeroize_derive"]
 serde = ["dep:serde"]

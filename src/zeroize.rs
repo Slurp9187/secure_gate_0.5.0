@@ -1,22 +1,18 @@
-// src/zeroize.rs
-// Full zeroize integration — only exists when feature is enabled
-
+// src/zeroize.rs — FINAL VERSION
 #[cfg(feature = "zeroize")]
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 #[cfg(feature = "zeroize")]
 use secrecy::SecretBox;
 
-// Zeroizing versions — opt-in, non-breaking
 #[cfg(feature = "zeroize")]
 pub type FixedZeroizing<T> = Zeroizing<T>;
 
 #[cfg(feature = "zeroize")]
 pub type DynamicZeroizing<T> = SecretBox<T>;
 
-// Easy conversion
 #[cfg(feature = "zeroize")]
-impl<T: Copy + Zeroize> From<crate::Fixed<T>> for FixedZeroizing<T> {
+impl<T: Zeroize> From<crate::Fixed<T>> for FixedZeroizing<T> {
     fn from(fixed: crate::Fixed<T>) -> Self {
         Zeroizing::new(fixed.0)
     }
@@ -29,9 +25,24 @@ impl<T: ?Sized + Zeroize> From<crate::Dynamic<T>> for DynamicZeroizing<T> {
     }
 }
 
-// Auto-wipe on drop — this is the real security
+// Zeroize — no Copy bound
 #[cfg(feature = "zeroize")]
-impl<T: Copy + Zeroize> ZeroizeOnDrop for crate::Fixed<T> {}
+impl<T: Zeroize> Zeroize for crate::Fixed<T> {
+    fn zeroize(&mut self) {
+        self.0.zeroize();
+    }
+}
+
+#[cfg(feature = "zeroize")]
+impl<T: ?Sized + Zeroize> Zeroize for crate::Dynamic<T> {
+    fn zeroize(&mut self) {
+        self.0.zeroize();
+    }
+}
+
+// ZeroizeOnDrop — no Copy bound
+#[cfg(feature = "zeroize")]
+impl<T: Zeroize> ZeroizeOnDrop for crate::Fixed<T> {}
 
 #[cfg(feature = "zeroize")]
 impl<T: ?Sized + Zeroize> ZeroizeOnDrop for crate::Dynamic<T> {}
