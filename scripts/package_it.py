@@ -52,7 +52,7 @@ PACKAGES = [
     {
         "suffix": "fuzz",
         "root_files": ["fuzz/Cargo.toml", ".github/workflows/fuzz-nightly.yml", ".github/workflows/fuzz-quick.yml"],
-        "include_dirs": ["fuzz"],
+        "include_dirs": ["fuzz/fuzz_targets"],
         "file_pattern": "*.rs",
         "description": "Fuzzing targets",
     },
