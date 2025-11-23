@@ -113,7 +113,7 @@ Measured with Criterion 0.5 under real-world load (including Windows Update chec
 
 Even under background load, overhead is **< 0.1 CPU cycles** — indistinguishable from raw arrays.
 
-[Full report →](benches/fixed_vs_raw.html)
+[Full interactive report →](benches/fixed_vs_raw/report/index.html)
 
 ## Migration from v0.4.x
 
