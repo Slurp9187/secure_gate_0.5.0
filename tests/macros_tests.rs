@@ -1,10 +1,15 @@
 // tests/macros_tests.rs
-//! Tests for all public macros — fully compatible with secrecy 0.10
+//! Tests for all public macros — works with and without zeroize feature
 
 #![cfg(test)]
 
+use secure_gate::{dynamic_alias, fixed_alias, secure, Dynamic};
+
+// Only bring in secrecy and zeroizing macros when the feature is enabled
+#[cfg(feature = "zeroize")]
 use secrecy::ExposeSecret;
-use secure_gate::{dynamic_alias, fixed_alias, secure, secure_zeroizing, Dynamic}; // ← THIS IS REQUIRED
+#[cfg(feature = "zeroize")]
+use secure_gate::secure_zeroizing;
 
 #[test]
 fn secure_macro_fixed_array() {
@@ -33,27 +38,27 @@ fn secure_macro_heap_generic() {
     assert_eq!(&*secret, &payload);
 }
 
+#[cfg(feature = "zeroize")]
 #[test]
 fn secure_zeroizing_fixed() {
     let key = secure_zeroizing!([u8; 32], [99u8; 32]);
-    assert_eq!(&*key, &[99u8; 32]); // Zeroizing<T> implements Deref
+    assert_eq!(&*key, &[99u8; 32]);
     assert_eq!(key.len(), 32);
 }
 
+#[cfg(feature = "zeroize")]
 #[test]
 fn secure_zeroizing_heap_string() {
     let pw = secure_zeroizing!(heap String, Box::new("top secret".to_string()));
-
-    // Correct API for SecretBox<T>
     assert_eq!(pw.expose_secret().as_str(), "top secret");
     assert_eq!(pw.expose_secret().len(), 10);
 }
 
+#[cfg(feature = "zeroize")]
 #[test]
 fn secure_zeroizing_heap_vec() {
     let data = vec![7u8; 64];
     let secret = secure_zeroizing!(heap Vec<u8>, Box::new(data.clone()));
-
     assert_eq!(secret.expose_secret().as_slice(), &data[..]);
     assert_eq!(secret.expose_secret().len(), 64);
 }

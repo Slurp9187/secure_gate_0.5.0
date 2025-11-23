@@ -8,14 +8,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.5.1] - 2025-11-23
 
 ### Added
-- `secure!`, `secure_zeroizing!`, `fixed_alias!`, and `dynamic_alias!` macros — the most ergonomic secret creation syntax in Rust
-- Full support for heap secret creation via `secure!(String, ...)` and `secure!(Vec<u8>, ...)`
-- `from_slice` and `From<&[u8; N]>` on all fixed-size aliases
-- Corrected and strengthened documentation on memory wiping guarantees
-- `finish_mut()` now emphasized as the way to eliminate slack capacity
+- New `secure!`, `secure_zeroizing!`, `fixed_alias!`, and `dynamic_alias!` macros for ergonomic secret creation
+- Support for heap-based secrets via `secure!(String, ...)` and `secure!(Vec<u8>, ...)`
+- `from_slice()` method and `From<[u8; N]>` impl on all `fixed_alias!` types
+- `finish_mut()` helper emphasized for eliminating spare capacity in heap secrets
+- Comprehensive macro test suite (`tests/macros_tests.rs`) with full feature-gate support
+
+### Changed
+- `fixed_alias!` now only emits the type alias; methods are provided via generic impls on `Fixed<[u8; N]>`
+- Improved documentation of memory guarantees under the `zeroize` feature
+- Macro tests now correctly gated behind `#[cfg(feature = "zeroize")]` to support `--no-default-features`
 
 ### Fixed
-- README now accurately reflects real zeroize/secrecy behavior (full-capacity wipe + normal deallocation, no forced shrink)
+- README now accurately reflects that `zeroize` performs full-capacity wiping, but does not force deallocation or shrink capacity
+- Resolved orphan rule violations in `fixed_alias!` macro
+- Fixed privacy and feature-gating issues in test suite and re-exports
 
 ## [0.5.0] - 2025-11-22
 

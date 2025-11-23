@@ -46,9 +46,9 @@ let mut password: Password = secure!(String, "hunter2".to_string());
 password.push('!');
 password.finish_mut(); // shrink_to_fit() on String/Vec<u8>
 
-// Auto-zeroing variants
+// Auto-zeroing variants (requires `zeroize` feature)
 let temp_key = secure_gate::secure_zeroizing!([u8; 32], derive_key());
-let secret_vec = secure_gate::secure_zeroizing!(heap Vec<u8>, secret_bytes);
+let secret_vec = secure_gate::secure_zeroizing!(heap Vec<u8>, Box::new(secret_bytes));
 ```
 
 ## Memory Guarantees (`zeroize` feature enabled)
@@ -62,8 +62,10 @@ let secret_vec = secure_gate::secure_zeroizing!(heap Vec<u8>, secret_bytes);
 
 - All zeroing uses `zeroize::Zeroize` (volatile writes + compiler fence).
 - `Vec<u8>` and `String` have their full current capacity zeroed and are truncated to length zero.
-- The underlying allocation is freed on drop (standard Rust behaviour); capacity is not forcibly reduced to zero unless `finish_mut()` / `shrink_to_fit()` is called.
+- The underlying allocation is freed on drop (standard Rust behavior); capacity is not forcibly reduced unless `finish_mut()` / `shrink_to_fit()` is called.
 - Past reallocations may leave copies of data elsewhere in memory. Pre-allocate with the final expected size to avoid reallocations.
+
+**Important**: `DynamicZeroizing<T>` (i.e. `SecretBox<T>`) is accessed via `.expose_secret()` and `.expose_secret_mut()` — it does **not** implement `Deref`.
 
 ## Macros
 
@@ -72,8 +74,8 @@ secure!([u8; 32], rng.gen())           // Fixed<[u8; 32]>
 secure!(String, "pw".into())           // Dynamic<String>
 secure!(Vec<u8>, data.to_vec())        // Dynamic<Vec<u8>>
 
-secure_zeroizing!([u8; 32], key)       // FixedZeroizing<[u8; 32]>
-secure_zeroizing!(heap Vec<u8>, data)  // DynamicZeroizing<Vec<u8>>
+secure_zeroizing!([u8; 32], key)       // FixedZeroizing<[u8; 32]> (zeroize feature)
+secure_zeroizing!(heap Vec<u8>, Box::new(data))  // DynamicZeroizing<Vec<u8>>
 
 fixed_alias!(MyKey, 32)
 dynamic_alias!(MySecret, Vec<u8>)
@@ -92,8 +94,8 @@ dynamic_alias!(JwtSigningKey, Vec<u8>);
 ## Migration from v0.4.x
 
 - `SecureGate<T>` → `Fixed<T>` (stack) or `Dynamic<T>` (heap)
-- `.expose_secret()` → direct deref (`&*value` or `&mut *value`)
-- Automatic zeroing → `FixedZeroizing<T>` or `DynamicZeroizing<T>`
+- `.expose_secret()` → direct deref (`&*value` or `&mut *value`) for `Fixed`/`Dynamic`
+- Automatic zeroing → `FixedZeroizing<T>` or `DynamicZeroizing<T>` (with `zeroize` feature)
 
 ## Changelog
 
