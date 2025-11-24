@@ -19,6 +19,7 @@ zeroize = { version = "1.8", default-features = false, features = [
   "alloc",
   "zeroize_derive",
 ] }
+secrecy = "0.10"
 
 # Propagate every library feature exactly as defined (v0.5.0 has no 'stack', 'unsafe-wipe', or 'full')
 [features]
@@ -65,3 +66,10 @@ path = "fuzz_targets/serde.rs"
 test = false
 bench = false
 doc = false
+
+# ← add this block at the end of the existing [[bin]] sections
+[[bin]]
+name = "zeroizing"
+path = "fuzz_targets/zeroizing.rs"
+test = false
+bench = false

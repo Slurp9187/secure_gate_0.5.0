@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [clone, expose, mut, parsing, serde]
+        target: [clone, expose, mut, parsing, serde, zeroizing]
         # normal = no sanitizer, asan = AddressSanitizer + LeakSanitizer
         mode: [normal, asan]
 
