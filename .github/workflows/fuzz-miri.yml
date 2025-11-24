@@ -4,16 +4,11 @@ on:
   schedule:
     # Every Sunday at 00:00 UTC (~5 PM Saturday Pacific / 6 PM Mountain)
     - cron: "0 0 * * 0"
-  workflow_dispatch:
+  workflow_dispatch: # manual trigger only
+
+  # Fast smoke test on main pushes (just like fuzz-nightly)
   push:
     branches: [main]
-    paths:
-      - "src/**"
-      - "fuzz/**"
-      - "tests/**"
-      - "Cargo.toml"
-      - "Cargo.lock"
-  pull_request:
     paths:
       - "src/**"
       - "fuzz/**"
@@ -25,7 +20,6 @@ jobs:
   miri:
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    # No matrix needed — Miri is single-job, Linux-only
 
     steps:
       - name: Checkout repository
@@ -46,6 +40,7 @@ jobs:
       - name: Setup Miri (first-time initialization)
         run: cargo miri setup
 
+      # Always run unit tests — fast and strict
       - name: Run Miri on all tests (strict — fails on any UB)
         env:
           MIRIFLAGS: >-
@@ -55,6 +50,7 @@ jobs:
         run: |
           cargo miri test --workspace --all-features -- --include-ignored
 
+      # Full corpus scan — only on schedule or manual (slow)
       - name: Light corpus scan with Miri (weekly or manual only)
         if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         env:
@@ -69,7 +65,7 @@ jobs:
             timeout 120 cargo miri run --bin $target -- -max_total_time=60 || \
               echo "Warning: $target timed out or hit expected panic (ignored)"
           done
-        continue-on-error: true # Expected for fuzzer-generated edge  inputs
+        continue-on-error: true
 
       - name: Upload Miri logs on failure
         if: failure()
