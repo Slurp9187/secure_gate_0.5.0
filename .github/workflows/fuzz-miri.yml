@@ -69,7 +69,7 @@ jobs:
             timeout 120 cargo miri run --bin $target -- -max_total_time=60 || \
               echo "Warning: $target timed out or hit expected panic (ignored)"
           done
-        continue-on-error: true # Expected for fuzzer-generated edge inputs
+        continue-on-error: true # Expected for fuzzer-generated edge  inputs
 
       - name: Upload Miri logs on failure
         if: failure()
