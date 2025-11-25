@@ -41,13 +41,12 @@ macro_rules! fixed_alias {
     ($name:ident, $size:literal) => {
         /// Fixed-size secret of exactly `$size` bytes.
         pub type $name = $crate::Fixed<[u8; $size]>;
-
-        // Only the type alias — no impls!
-        // All methods come from the generic impls in src/fixed.rs
     };
 }
 
 /// Define a dynamic (heap) secret alias.
+///
+/// All methods and conversions (e.g., `.into()`) come from generic impls on `Dynamic<T>`.
 #[macro_export]
 macro_rules! dynamic_alias {
     ($name:ident, $ty:ty) => {

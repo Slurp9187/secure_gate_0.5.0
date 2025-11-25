@@ -3,20 +3,20 @@
 Zero-cost, `no_std`-compatible wrappers for handling sensitive data in memory.
 
 - `Fixed<T>` – stack-allocated, zero-cost wrapper.
-- `Dynamic<T>` – heap-allocated wrapper that forwards to the inner type.
+- `Dynamic<T>` – heap-allocated wrapper with full `.into()` ergonomics.
 - When the `zeroize` feature is enabled, `FixedZeroizing<T>` and `DynamicZeroizing<T>` provide automatic zeroing on drop.
 
 ## Installation
 
 ```toml
 [dependencies]
-secure-gate = "0.5.5"
+secure-gate = "0.5.6"
 ```
 
 With automatic zeroing (recommended for most use cases):
 
 ```toml
-secure-gate = { version = "0.5.5", features = ["zeroize"] }
+secure-gate = { version = "0.5.6", features = ["zeroize"] }
 ```
 
 ## Features
@@ -31,40 +31,30 @@ secure-gate = { version = "0.5.5", features = ["zeroize"] }
 ## Quick Start
 
 ```rust
-use secure_gate::{secure, fixed_alias, dynamic_alias};
+use secure_gate::{fixed_alias, dynamic_alias};
 
-// Type aliases
+// Beautiful type aliases
 fixed_alias!(Aes256Key, 32);
 fixed_alias!(Nonce12, 12);
 dynamic_alias!(Password, String);
+dynamic_alias!(JwtKey, Vec<u8>);
 
-// Construction — idiomatic and zero-cost
-let key = Aes256Key::from(rng.gen());           // explicit
-let key2: Aes256Key = rng.gen().into();         // natural .into()
-let key3 = Aes256Key::new(rng.gen());           // classic
+// Fixed-size secrets — natural syntax
+let key: Aes256Key = rng.gen().into();      // The dream
+let nonce: Nonce12 = rng.gen().into();
 
-let nonce = Nonce12::from(rng.gen());
-let nonce2: Nonce12 = rng.gen().into();
+// Heap-based secrets — now just as beautiful!
+let pw: Password = "hunter2".into();                    // From<&str>
+let pw2: Password = "hunter2".to_string().into();       // From<String>
+let jwt: JwtKey = secret_bytes.into();                  // From<Vec<u8>>
 
-// Access the secret — loud, clear, and zero-cost
-let key_bytes: &[u8] = key.expose_secret();
-let key_bytes_mut: &mut [u8] = key.expose_secret_mut();
-key_bytes_mut[0] = 0xFF;                         // e.g. key scheduling, HKDF, etc.
-assert_eq!(key[0], 0xFF);
+// Zeroizing heap secrets — same ergonomics
+let temp_pw: DynamicZeroizing<String> = "temp123".into();
+let temp_key: DynamicZeroizing<Vec<u8>> = vec![0u8; 32].into();
 
-// Heap-based secrets
-let mut password: Password = secure!(String, "hunter2".to_string());
-password.push('!');
-password.finish_mut(); // shrink_to_fit() on String/Vec<u8>
-
-// Access the secret directly
-let pw_str: &str = password.expose_secret();
-let pw_str_mut: &mut str = password.expose_secret_mut().as_mut_str();
-pw_str_mut.push('!');
-
-// Auto-zeroing variants (requires `zeroize` feature)
-let temp_key = secure_gate::secure_zeroizing!([u8; 32], derive_key());
-let secret_vec = secure_gate::secure_zeroizing!(heap Vec<u8>, Box::new(secret_bytes));
+// Access is explicit and loud
+let bytes: &[u8] = key.expose_secret();
+let pw_str: &str = pw.expose_secret();
 ```
 
 ## Memory Guarantees (`zeroize` feature enabled)
@@ -76,25 +66,26 @@ let secret_vec = secure_gate::secure_zeroizing!(heap Vec<u8>, Box::new(secret_by
 | `FixedZeroizing<T>`      | Stack      | Yes                | Yes             | Yes                      | RAII wrapper |
 | `DynamicZeroizing<T>`    | Heap       | Yes                | Yes             | No (until drop)          | `SecretBox` prevents copies |
 
-- All zeroing uses `zeroize::Zeroize` (volatile writes + compiler fence).
-- `Vec<u8>` and `String` have their full current capacity zeroed and are truncated to length zero.
-- The underlying allocation is freed on drop (standard Rust behavior); capacity is not forcibly reduced unless `finish_mut()` / `shrink_to_fit()` is called.
-- Past reallocations may leave copies of data elsewhere in memory. Pre-allocate with the final expected size to avoid reallocations.
-
-**Important**: `DynamicZeroizing<T>` (i.e. `SecretBox<T>`) is accessed via `.expose_secret()` and `.expose_secret_mut()` — it does **not** implement `Deref`.
+**Important**: `DynamicZeroizing<T>` is accessed via `.expose_secret()` — it does **not** implement `Deref`.
 
 ## Macros
 
 ```rust
-secure!([u8; 32], rng.gen())                    // Fixed<[u8; 32]>
-secure!(String, "pw".into())                    // Dynamic<String>
-secure!(Vec<u8>, data.to_vec())                 // Dynamic<Vec<u8>>
+// Fixed-size secrets
+secure!([u8; 32], rng.gen())                    // → Fixed<[u8; 32]>
 
-secure_zeroizing!([u8; 32], key)                // FixedZeroizing<[u8; 32]> (zeroize feature)
-secure_zeroizing!(heap Vec<u8>, Box::new(data)) // DynamicZeroizing<Vec<u8>>
+// Heap secrets (non-zeroizing)
+secure!(String, "pw".into())                    // → Dynamic<String>
+secure!(Vec<u8>, data.to_vec())                 // → Dynamic<Vec<u8>>
+secure!(heap Vec<u8>, payload)                  // → Dynamic<Vec<u8>>
 
-fixed_alias!(MyKey, 32)
-dynamic_alias!(MySecret, Vec<u8>)
+// Zeroizing secrets (zeroize feature)
+secure_zeroizing!([u8; 32], key)                // → FixedZeroizing<[u8; 32]>
+secure_zeroizing!(heap String, "temp".into())   // → DynamicZeroizing<String>
+
+// Type aliases — the recommended way
+fixed_alias!(Aes256Key, 32)
+dynamic_alias!(Password, String)
 ```
 
 ## Example Aliases
@@ -106,9 +97,10 @@ fixed_alias!(XChaCha20Nonce, 24);
 dynamic_alias!(Password, String);
 dynamic_alias!(JwtSigningKey, Vec<u8>);
 
-// Usage
-let key = Aes256Key::from(rng.gen());
-let key2: Aes256Key = rng.gen().into();
+// Usage — pure joy
+let key: Aes256Key = rng.gen().into();
+let pw: Password = "hunter2".into();
+let jwt: JwtSigningKey = secret_bytes.into();
 ```
 
 ### Zero-cost — proven on real hardware
@@ -116,29 +108,29 @@ let key2: Aes256Key = rng.gen().into();
 | Implementation             | Median time | Max overhead vs raw |
 |----------------------------|-------------|---------------------|
 | raw `[u8; 32]`             | ~460 ps     | —                   |
-| `Fixed<[u8; 32]>`          | ~460 ps     | **+28 ps** (0.000000028 s) |
+| `Fixed<[u8; 32]>`          | ~460 ps     | **+28 ps**          |
 | `fixed_alias!(Key, 32)`    | ~475 ps     | **+13 ps**          |
 
 **Test machine** (2019-era laptop):  
-Lenovo ThinkPad L13 (81XH) • Intel Core i7-10510U (4c/8t @ 1.80 GHz) • 16 GB RAM • Windows 10 Pro 26100.1  
-Measured with Criterion 0.5 under real-world load (including Windows Update check).
+Lenovo ThinkPad L13 • Intel Core i7-10510U • 16 GB RAM • Windows 10 Pro  
+Measured with Criterion under real-world load.
 
-Even under background load, overhead is **< 0.1 CPU cycles** — indistinguishable from raw arrays.
+Overhead is **< 0.1 CPU cycles** — indistinguishable from raw arrays.
 
 [View full interactive report](https://slurp9187.github.io/secure-gate/benches/fixed_vs_raw/report/)
 
 ## Migration from v0.4.x
 
 - `SecureGate<T>` → `Fixed<T>` (stack) or `Dynamic<T>` (heap)
-- `.expose_secret()` → `value.expose_secret()` (returns `&T`)
-- `.expose_secret_mut()` → `value.expose_secret_mut()` (returns `&mut T`)
-- Automatic zeroing → `FixedZeroizing<T>` or `DynamicZeroizing<T>` (with `zeroize` feature)
+- `.expose_secret()` → `value.expose_secret()`
+- `.expose_secret_mut()` → `value.expose_secret_mut()`
+- Automatic zeroing → `FixedZeroizing<T>` or `DynamicZeroizing<T>`
 
 **Note**: `.view()` and `.view_mut()` are deprecated in v0.5.5 and will be removed in v0.6.0.
 
 ## Changelog
 
-See [CHANGELOG.md](https://github.com/Slurp9187/secure-gate/blob/main/CHANGELOG.md)
+[See CHANGELOG.md](https://github.com/Slurp9187/secure-gate/blob/main/CHANGELOG.md)
 
 ## License
 

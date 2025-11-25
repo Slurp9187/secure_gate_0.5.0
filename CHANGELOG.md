@@ -5,6 +5,23 @@ All changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),  
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.6] - 2025-04-05
+
+### Added
+- **Major ergonomics upgrade** – `Dynamic<T>` and `DynamicZeroizing<T>` now implement idiomatic `.into()` conversions:
+  ```rust
+  dynamic_alias!(Password, String);
+  dynamic_alias!(JwtKey, Vec<u8>);
+
+  // The dream syntax – just works!
+  let pw: Password = "hunter2".into();                     // From<&str>
+  let pw: Password = "hunter2".to_string().into();         // From<String>
+  let key: JwtKey = secret_bytes.into();                   // From<Vec<u8>>
+
+  // Zeroizing variants too!
+  let pw: DynamicZeroizing<String> = "temp secret".into();
+  let key: DynamicZeroizing<Vec<u8>> = vec![0u8; 32].into();
+
 ## [0.5.5] - 2025-08-10
 
 ### Changed
