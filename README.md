@@ -138,7 +138,7 @@ let jwt: JwtSigningKey = secret_bytes.into();
 | `fixed_alias!(Key, 32)`    | ~475 ps     | **+13 ps**          |
 
 **Test machine** (2019-era laptop):  
-Lenovo ThinkPad L13 • Intel Core i7-10510U • 16 GB RAM • Windows 10 Pro  
+Intel Core i7-10510U • 16 GB RAM • Windows 11 Pro  
 Measured with Criterion under real-world load.
 
 Overhead is **< 0.1 CPU cycles** — indistinguishable from raw arrays.
