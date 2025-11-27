@@ -111,6 +111,9 @@ jobs:
       - name: Install llvm-tools (required for llvm-cov)
         run: rustup component add llvm-tools-preview
 
+      - name: Add LLVM tools to PATH
+        run: echo "$(rustc --print sysroot)/lib/rustlib/x86_64-unknown-linux-gnu/bin" >> $GITHUB_PATH
+
       - name: Cache
         uses: Swatinem/rust-cache@v2
 
