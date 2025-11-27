@@ -75,7 +75,13 @@ jobs:
           ASAN_OPTIONS: detect_leaks=1 abort_on_error=1 symbolize=1 allocator_may_return_null=1
         run: |
           echo "Fuzzing ${{ matrix.target }} (${{ matrix.mode }}) for ~58 minutes..."
-          cargo +nightly fuzz run ${{ matrix.target }} $FUZZER_ARGS
+          cargo +nightly fuzz run ${{ matrix.target }} \
+            fuzz/corpus/${{ matrix.target }} \
+            -fork=1 \
+            -timeout=60 \
+            -rss_limit_mb=8192 \
+            -runs=0 \
+            -max_total_time=3500
 
       - name: Upload grown corpus
         if: always()
