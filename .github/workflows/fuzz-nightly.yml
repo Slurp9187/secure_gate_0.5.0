@@ -9,14 +9,8 @@ on:
 permissions:
   contents: read
   actions: read
-  # Needed to upload artifacts (corpora + crashes)
-  # actions: write is default, but we make it explicit
-  # (no security impact – only this repo)
 
 jobs:
-  # --------------------------------------------------------------
-  # 1. Long-running fuzzing with persistent corpus
-  # --------------------------------------------------------------
   fuzz:
     runs-on: ubuntu-latest
     timeout-minutes: 400   # ~6.5 h total safety margin
@@ -135,6 +129,9 @@ jobs:
           toolchain: nightly
           components: rust-src
 
+      - name: Install llvm-tools (required for llvm-cov)
+        run: rustup component add llvm-tools-preview
+
       - name: Cache
         uses: Swatinem/rust-cache@v2
 
@@ -159,13 +156,16 @@ jobs:
             fi
 
             echo "=== Generating coverage for $target ==="
-            cargo +nightly fuzz coverage $target "$corpus_dir" -- -runs=500000
+            cargo +nightly fuzz coverage $target "$corpus_dir" -- -runs=200000
 
             llvm-cov show \
               --instr-profile=fuzz/coverage/$target/coverage.profdata \
               --format=html \
               --ignore-filename-regex='/.cargo|/rustc/' \
               --output-dir=coverage/html/$target
+
+            echo "Generated HTML files:"
+            ls -R coverage/html/$target || echo "No HTML files generated (check llvm-cov errors above)"
 
             cargo +nightly fuzz coverage $target "$corpus_dir" --lcov --output-path=coverage/lcov/$target.info
           done
@@ -176,3 +176,4 @@ jobs:
           name: fuzz-coverage-html-${{ github.run_id }}
           path: coverage/html/
           retention-days: 90
+          if-no-files-found: warn   # OK if empty in early runs
