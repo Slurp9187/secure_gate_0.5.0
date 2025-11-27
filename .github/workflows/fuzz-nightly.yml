@@ -13,12 +13,12 @@ permissions:
 jobs:
   fuzz:
     runs-on: ubuntu-latest
-    timeout-minutes: 400   # ~6.5 h total safety margin
+    timeout-minutes: 400 # ~6.5 h total safety margin
     strategy:
       fail-fast: false
       matrix:
         target: [clone, expose, mut, parsing, serde, zeroizing]
-        mode: [normal, asan]   # normal = no sanitizer, asan = Address + Leak
+        mode: [normal, asan] # normal = no sanitizer, asan = Address + Leak
 
     env:
       # libFuzzer flags that work well on GitHub runners
@@ -111,9 +111,6 @@ jobs:
       - name: Install llvm-tools (required for llvm-cov)
         run: rustup component add llvm-tools-preview
 
-      - name: Add LLVM tools to PATH
-        run: echo "$(rustc --print sysroot)/lib/rustlib/x86_64-unknown-linux-gnu/bin" >> $GITHUB_PATH
-
       - name: Cache
         uses: Swatinem/rust-cache@v2
 
@@ -125,7 +122,7 @@ jobs:
         with:
           pattern: fuzz-corpus-*
           path: fuzz/corpus/
-          merge-multiple: false   # IMPORTANT: False to preserve per-target dirs
+          merge-multiple: false # IMPORTANT: False to preserve per-target dirs
 
       - name: Generate HTML + lcov coverage
         run: |
@@ -145,6 +142,7 @@ jobs:
 
             llvm-cov show \
               --instr-profile=fuzz/coverage/$target/coverage.profdata \
+              --object fuzz/target/release/$target \
               --format=html \
               --ignore-filename-regex='/.cargo|/rustc/' \
               --output-dir=coverage/html/$target
@@ -161,4 +159,4 @@ jobs:
           name: fuzz-coverage-html-${{ github.run_id }}
           path: coverage/html/
           retention-days: 90
-          if-no-files-found: warn   # OK if empty in early runs
+          if-no-files-found: warn # OK if empty in early runs
