@@ -1,7 +1,43 @@
 // src/macros.rs
-//! Ergonomic secret-handling macros.
+//! Ergonomic macros for creating and aliasing secrets.
+//!
+//! These macros provide concise syntax for instantiating [`Fixed`], [`Dynamic`],
+//! and their zeroizing variants, as well as defining type aliases for common
+//! secret types.
+//!
+//! # Examples
+//!
+//! ```
+//! use secure_gate::{dynamic_alias, fixed_alias, secure};
+//!
+//! fixed_alias!(Aes256Key, 32);
+//! dynamic_alias!(Password, String);
+//!
+//! let key = secure!([u8; 32], [42u8; 32]);
+//! let pw = secure!(String, "hunter2".to_string());
+//! ```
 
-/// Create a secret — works for fixed-size arrays and heap types.
+/// Creates a secret wrapper around the given value.
+///
+/// Supports fixed-size byte arrays and heap-allocated types like `String` and `Vec<u8>`.
+///
+/// # Examples
+///
+/// ```
+/// use secure_gate::secure;
+///
+/// // Fixed-size secret
+/// let key = secure!([u8; 32], [42u8; 32]);
+/// assert_eq!(key.expose_secret(), &[42u8; 32]);
+///
+/// // Heap-allocated secret
+/// let pw = secure!(String, "hunter2".to_string());
+/// assert_eq!(pw.expose_secret(), "hunter2");
+///
+/// // Alternative heap syntax
+/// let data: secure_gate::Dynamic<Vec<u8>> = secure!(heap Vec<u8>, vec![1u8, 2u8, 3u8]);
+/// assert_eq!(data.as_slice(), &[1u8, 2u8, 3u8]);
+/// ```
 #[macro_export]
 macro_rules! secure {
     ([u8; $N:literal], $expr:expr $(,)?) => {
@@ -21,7 +57,29 @@ macro_rules! secure {
     };
 }
 
-/// Create a zeroizing secret (auto-wiped on drop)
+/// Creates a zeroizing secret that automatically wipes itself on drop.
+///
+/// Requires the `zeroize` feature.
+///
+/// # Examples
+///
+/// ```
+/// use secure_gate::secure_zeroizing;
+///
+/// #[cfg(feature = "zeroize")]
+/// {
+///     use zeroize::Zeroizing;
+///     use secrecy::ExposeSecret;
+///
+///     // Fixed-size zeroizing secret (uses zeroize::Zeroizing directly)
+///     let key: Zeroizing<[u8; 32]> = secure_zeroizing!([u8; 32], [42u8; 32]);
+///     assert_eq!(key[..], [42u8; 32]);
+///
+///     // Heap-allocated zeroizing secret
+///     let pw = secure_zeroizing!(heap String, "hunter2".to_string().into_boxed_str());
+///     assert_eq!(pw.expose_secret(), "hunter2");
+/// }
+/// ```
 #[macro_export]
 macro_rules! secure_zeroizing {
     ($ty:ty, $expr:expr $(,)?) => {
@@ -32,10 +90,21 @@ macro_rules! secure_zeroizing {
     };
 }
 
-/// Define a fixed-size secret alias with beautiful constructor syntax
+/// Defines a type alias for a fixed-size byte secret.
 ///
-/// The alias gets useful methods automatically because `Fixed` implements them
-/// for all array sizes (see `src/fixed.rs`).
+/// The resulting type inherits all methods from [`Fixed<[u8; N]>`], including
+/// constructors like `from_slice` and `From<[u8; N]>`.
+///
+/// # Examples
+///
+/// ```
+/// use secure_gate::fixed_alias;
+///
+/// fixed_alias!(Aes256Key, 32);
+///
+/// let key: Aes256Key = [42u8; 32].into();
+/// assert_eq!(key.expose_secret(), &[42u8; 32]);
+/// ```
 #[macro_export]
 macro_rules! fixed_alias {
     ($name:ident, $size:literal) => {
@@ -44,9 +113,20 @@ macro_rules! fixed_alias {
     };
 }
 
-/// Define a dynamic (heap) secret alias.
+/// Defines a type alias for a dynamic (heap-allocated) secret.
 ///
-/// All methods and conversions (e.g., `.into()`) come from generic impls on `Dynamic<T>`.
+/// The resulting type inherits all methods and conversions from [`Dynamic<T>`].
+///
+/// # Examples
+///
+/// ```
+/// use secure_gate::dynamic_alias;
+///
+/// dynamic_alias!(Password, String);
+///
+/// let pw: Password = "hunter2".into();
+/// assert_eq!(pw.expose_secret(), "hunter2");
+/// ```
 #[macro_export]
 macro_rules! dynamic_alias {
     ($name:ident, $ty:ty) => {
