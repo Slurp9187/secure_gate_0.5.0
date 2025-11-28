@@ -1,10 +1,34 @@
-// src/zeroize.rs — FIXED VERSION with newtype for DynamicZeroizing
-// Changes:
-// - Added T: Zeroize bound on struct definition to enforce at compile time
-// - Added T: DefaultIsZeroes to ?Sized impls where required for Zeroize on unsized types
-// - Fixed ExposeSecret impl to use generic S (matches secrecy's trait definition)
-// - Implemented redacted Debug manually (avoids derive issues with bounds)
-// - Kept From impls with proper bounds
+// src/zeroize.rs
+//! Zeroizing wrappers that automatically wipe sensitive data on drop.
+//!
+//! This module is only compiled when the `zeroize` feature is enabled.
+//!
+//! ### Types
+//!
+//! | Type                     | Underlying implementation          | Access method                     | Notes |
+//! |--------------------------|-------------------------------------|-----------------------------------|-------|
+//! | `FixedZeroizing<T>`      | `zeroize::Zeroizing<T>` (re-export) | `&*value` or `.deref()`           | Stack-only, zero-cost |
+//! | `DynamicZeroizing<T>`    | `secrecy::SecretBox<T>` wrapper     | `.expose_secret()` / `.expose_secret_mut()` | Heap-only, prevents cloning |
+//!
+//! Both types implement `ZeroizeOnDrop` and wipe the contained secret
+//! (including spare capacity for `Vec<u8>`/`String`) when dropped.
+//!
+//! # Examples
+//!
+//! ```
+//! use secure_gate::{DynamicZeroizing, FixedZeroizing};
+//! use secrecy::ExposeSecret;
+//!
+//! // Fixed-size zeroizing secret
+//! let key = FixedZeroizing::new([42u8; 32]);
+//! assert_eq!(key[..], [42u8; 32]);
+//! drop(key); // memory is zeroed here
+//!
+//! // Heap-allocated zeroizing secret
+//! let pw: DynamicZeroizing<String> = "hunter2".into();
+//! assert_eq!(pw.expose_secret(), "hunter2");
+//! drop(pw); // both used bytes and spare capacity are zeroed
+//! ```
 
 #[cfg(feature = "zeroize")]
 use zeroize::{DefaultIsZeroes, Zeroize, ZeroizeOnDrop, Zeroizing};
@@ -13,21 +37,29 @@ use zeroize::{DefaultIsZeroes, Zeroize, ZeroizeOnDrop, Zeroizing};
 use secrecy::{ExposeSecret, SecretBox};
 
 #[cfg(feature = "zeroize")]
+/// Re-export of `zeroize::Zeroizing<T>` for stack-allocated secrets.
+///
+/// This is the canonical zeroizing wrapper for fixed-size data.
 pub type FixedZeroizing<T> = Zeroizing<T>;
 
-// NEWTYPE: Wrap SecretBox to own the type and impl foreign traits safely
 #[cfg(feature = "zeroize")]
+/// Zeroizing wrapper for heap-allocated secrets.
+///
+/// Uses `secrecy::SecretBox<T>` internally to prevent accidental cloning
+/// while still providing zeroization of the full allocation (including spare capacity).
 pub struct DynamicZeroizing<T: ?Sized + Zeroize>(SecretBox<T>);
 
 #[cfg(feature = "zeroize")]
 impl<T: ?Sized + Zeroize> DynamicZeroizing<T> {
+    /// Creates a new `DynamicZeroizing` from a boxed value.
+    ///
+    /// The boxed value will be zeroed (including spare capacity) on drop.
     #[inline(always)]
     pub fn new(value: Box<T>) -> Self {
         Self(SecretBox::new(value))
     }
 }
 
-// Redacted Debug (manual impl to avoid bound issues)
 #[cfg(feature = "zeroize")]
 impl<T: ?Sized + Zeroize> core::fmt::Debug for DynamicZeroizing<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -35,7 +67,6 @@ impl<T: ?Sized + Zeroize> core::fmt::Debug for DynamicZeroizing<T> {
     }
 }
 
-// Forward ExposeSecret (fixed with generic S)
 #[cfg(feature = "zeroize")]
 impl<S: ?Sized + Zeroize> ExposeSecret<S> for DynamicZeroizing<S> {
     #[inline(always)]
@@ -44,7 +75,6 @@ impl<S: ?Sized + Zeroize> ExposeSecret<S> for DynamicZeroizing<S> {
     }
 }
 
-// Forward Zeroize
 #[cfg(feature = "zeroize")]
 impl<T: Zeroize + DefaultIsZeroes> Zeroize for DynamicZeroizing<T> {
     fn zeroize(&mut self) {
@@ -52,11 +82,10 @@ impl<T: Zeroize + DefaultIsZeroes> Zeroize for DynamicZeroizing<T> {
     }
 }
 
-// Forward ZeroizeOnDrop (no additional bounds needed)
 #[cfg(feature = "zeroize")]
 impl<T: ?Sized + Zeroize> ZeroizeOnDrop for DynamicZeroizing<T> {}
 
-// Conversions from non-zeroizing wrappers
+/// Convenience conversions from non-zeroizing wrappers.
 #[cfg(feature = "zeroize")]
 impl<T: Zeroize> From<crate::Fixed<T>> for FixedZeroizing<T> {
     #[inline(always)]
@@ -73,7 +102,7 @@ impl<T: ?Sized + Zeroize> From<crate::Dynamic<T>> for DynamicZeroizing<T> {
     }
 }
 
-// Zeroize impls for non-zeroizing wrappers
+/// Zeroize impls for the non-zeroizing wrappers when the `zeroize` feature is active.
 #[cfg(feature = "zeroize")]
 impl<T: Zeroize> Zeroize for crate::Fixed<T> {
     fn zeroize(&mut self) {
@@ -94,10 +123,7 @@ impl<T: Zeroize> ZeroizeOnDrop for crate::Fixed<T> {}
 #[cfg(feature = "zeroize")]
 impl<T: ?Sized + Zeroize> ZeroizeOnDrop for crate::Dynamic<T> {}
 
-// ————————————————————————————————————————————————————————————————
-// Ergonomics: .into() support
-// ————————————————————————————————————————————————————————————————
-
+/// Ergonomic `.into()` support for zeroizing heap secrets.
 #[cfg(feature = "zeroize")]
 impl<T: Zeroize + Send + 'static> From<T> for DynamicZeroizing<T> {
     #[inline(always)]
