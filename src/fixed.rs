@@ -3,10 +3,23 @@
 //!
 //! `Fixed<T>` is a transparent wrapper around any type `T` that lives entirely on the stack.
 //! It provides:
-//! - Zero-cost abstraction (`Deref`/`DerefMut`)
-//! - Automatic redaction in `Debug`
-//! - Full `expose_secret()` API (the canonical way to access the secret)
-//! - Special ergonomics for `[u8; N]` arrays (crypto keys, nonces, etc.)
+//! - Zero-cost abstraction via `Deref`/`DerefMut`.
+//! - Automatic redaction in `Debug` output.
+//! - Explicit access via `.expose_secret()` (canonical API).
+//! - Specialized ergonomics for `[u8; N]` arrays (e.g., crypto keys, nonces).
+//!
+//! # Examples
+//!
+//! ```
+//! use secure_gate::{fixed_alias, Fixed};
+//!
+//! fixed_alias!(Aes256Key, 32);
+//!
+//! let raw_key = [42u8; 32]; // In real code: use rand::Rng::gen()
+//! let key: Aes256Key = raw_key.into();
+//!
+//! assert_eq!(key.expose_secret()[0], 42);
+//! ```
 
 use core::convert::From;
 use core::ops::{Deref, DerefMut};
@@ -14,33 +27,34 @@ use core::ops::{Deref, DerefMut};
 /// A zero-cost, stack-allocated wrapper for sensitive data.
 ///
 /// `Fixed<T>` stores its value directly in the struct (no heap allocation).
-/// It behaves exactly like `T` thanks to `Deref`/`DerefMut`, but:
-/// - Prints as `[REDACTED]` in debug output
-/// - Provides `.expose_secret()` as the explicit, loud way to access the secret
-/// - Works perfectly with `fixed_alias!` for beautiful type aliases
+/// It behaves exactly like `T` via `Deref`/`DerefMut`, but redacts itself
+/// in debug output and requires explicit access to the inner value.
+///
+/// Use this for fixed-size secrets like encryption keys or nonces.
 ///
 /// # Examples
 ///
 /// ```
-/// use secure_gate::{Fixed, fixed_alias};
+/// use secure_gate::Fixed;
 ///
-/// // Define a beautiful type alias (this is the recommended pattern)
-/// fixed_alias!(Aes256Key, 32);
-///
-/// // Generate a random key and convert it directly
-/// let raw_key = [42u8; 32];  // In real code: use rand::Rng::gen()
-/// let key: Aes256Key = raw_key.into();
-///
-/// // Access the bytes
-/// let bytes: &[u8] = key.expose_secret();
-/// assert_eq!(bytes.len(), 32);
+/// let secret: Fixed<[u8; 4]> = [1, 2, 3, 4].into();
+/// assert_eq!(secret.expose_secret(), &[1, 2, 3, 4]);
 /// ```
 pub struct Fixed<T>(pub T);
 
 impl<T> Fixed<T> {
-    /// Create a new `Fixed` wrapper around a value.
+    /// Creates a new `Fixed` wrapper around the given value.
     ///
-    /// This is usually not called directly — prefer `fixed_alias!` + `.into()`.
+    /// This is zero-cost and usually not called directly—prefer `fixed_alias!` + `.into()`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use secure_gate::Fixed;
+    ///
+    /// let secret = Fixed::new([42u8; 32]);
+    /// assert_eq!(secret.len(), 32);
+    /// ```
     #[inline(always)]
     pub const fn new(value: T) -> Self {
         Fixed(value)
@@ -50,6 +64,7 @@ impl<T> Fixed<T> {
 impl<T> Deref for Fixed<T> {
     type Target = T;
 
+    /// Dereferences the wrapper to access the inner value immutably.
     #[inline(always)]
     fn deref(&self) -> &T {
         &self.0
@@ -57,19 +72,28 @@ impl<T> Deref for Fixed<T> {
 }
 
 impl<T> DerefMut for Fixed<T> {
+    /// Dereferences the wrapper mutably to access the inner value.
     #[inline(always)]
     fn deref_mut(&mut self) -> &mut T {
         &mut self.0
     }
 }
 
-/// Convert a byte slice into a fixed-size secret.
-///
-/// Panics if the slice length doesn't match exactly.
+/// Converts a byte slice into a fixed-size secret array.
 ///
 /// # Panics
 ///
-/// Panics with "slice length mismatch" if `bytes.len() != N`.
+/// Panics if `bytes.len() != N` with the message "slice length mismatch".
+///
+/// # Examples
+///
+/// ```
+/// use secure_gate::Fixed;
+///
+/// let bytes = [42u8; 32];
+/// let secret = Fixed::from_slice(&bytes);
+/// assert_eq!(secret.expose_secret(), &[42u8; 32]);
+/// ```
 impl<const N: usize> Fixed<[u8; N]> {
     #[inline]
     pub fn from_slice(bytes: &[u8]) -> Self {
@@ -80,9 +104,18 @@ impl<const N: usize> Fixed<[u8; N]> {
     }
 }
 
-/// Convert a raw array into a fixed-size secret.
+/// Converts a raw array into a fixed-size secret.
 ///
-/// This enables the beautiful `let key: Aes256Key = rng.gen().into();` pattern.
+/// Enables idiomatic construction like `Aes256Key::from(rng.gen())`.
+///
+/// # Examples
+///
+/// ```
+/// use secure_gate::Fixed;
+///
+/// let secret: Fixed<[u8; 4]> = [1, 2, 3, 4].into();
+/// assert_eq!(secret.expose_secret(), &[1, 2, 3, 4]);
+/// ```
 impl<const N: usize> From<[u8; N]> for Fixed<[u8; N]> {
     #[inline(always)]
     fn from(arr: [u8; N]) -> Self {
@@ -90,7 +123,19 @@ impl<const N: usize> From<[u8; N]> for Fixed<[u8; N]> {
     }
 }
 
-/// Borrow as a byte slice — useful for crypto APIs.
+/// Borrows the fixed byte array as a slice.
+///
+/// Useful for passing to crypto APIs expecting `&[u8]`.
+///
+/// # Examples
+///
+/// ```
+/// use secure_gate::Fixed;
+///
+/// let secret: Fixed<[u8; 4]> = [1, 2, 3, 4].into();
+/// let slice: &[u8] = secret.as_ref();
+/// assert_eq!(slice, &[1, 2, 3, 4]);
+/// ```
 impl<const N: usize> AsRef<[u8]> for Fixed<[u8; N]> {
     #[inline(always)]
     fn as_ref(&self) -> &[u8] {
@@ -98,7 +143,20 @@ impl<const N: usize> AsRef<[u8]> for Fixed<[u8; N]> {
     }
 }
 
-/// Mutably borrow as a byte slice — e.g. for key scheduling.
+/// Mutably borrows the fixed byte array as a slice.
+///
+/// Useful for in-place modifications like key scheduling.
+///
+/// # Examples
+///
+/// ```
+/// use secure_gate::Fixed;
+///
+/// let mut secret: Fixed<[u8; 4]> = [1, 2, 3, 4].into();
+/// let slice: &mut [u8] = secret.as_mut();
+/// slice[0] = 42;
+/// assert_eq!(secret.expose_secret(), &[42, 2, 3, 4]);
+/// ```
 impl<const N: usize> AsMut<[u8]> for Fixed<[u8; N]> {
     #[inline(always)]
     fn as_mut(&mut self) -> &mut [u8] {
@@ -106,7 +164,7 @@ impl<const N: usize> AsMut<[u8]> for Fixed<[u8; N]> {
     }
 }
 
-/// All `Fixed<T>` values print as `[REDACTED]` to prevent accidental leakage.
+/// All `Fixed<T>` values print as "[REDACTED]" to prevent accidental leakage.
 impl<T> core::fmt::Debug for Fixed<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str("[REDACTED]")
@@ -114,29 +172,36 @@ impl<T> core::fmt::Debug for Fixed<T> {
 }
 
 impl<T> Fixed<T> {
-    /// Access the secret value immutably.
+    /// Accesses the secret value immutably.
     ///
-    /// This is the **canonical** way to read the secret — loud and clear.
+    /// This is the canonical, explicit way to read the secret.
     ///
     /// # Examples
     ///
     /// ```
-    /// use secure_gate::{Fixed, fixed_alias};
+    /// use secure_gate::Fixed;
     ///
-    /// fixed_alias!(Aes256Key, 32);
-    ///
-    /// let key: Aes256Key = [1u8; 32].into();
-    /// let bytes: &[u8] = key.expose_secret();
-    /// assert_eq!(bytes[0], 1);
+    /// let secret: Fixed<i32> = Fixed::new(42);
+    /// assert_eq!(*secret.expose_secret(), 42);
     /// ```
     #[inline(always)]
     pub fn expose_secret(&self) -> &T {
         &self.0
     }
 
-    /// Access the secret value mutably.
+    /// Accesses the secret value mutably.
     ///
-    /// Use this for in-place operations like key derivation.
+    /// Use for in-place modifications.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use secure_gate::Fixed;
+    ///
+    /// let mut secret: Fixed<i32> = Fixed::new(42);
+    /// *secret.expose_secret_mut() += 1;
+    /// assert_eq!(*secret.expose_secret(), 43);
+    /// ```
     #[inline(always)]
     pub fn expose_secret_mut(&mut self) -> &mut T {
         &mut self.0
@@ -144,7 +209,7 @@ impl<T> Fixed<T> {
 
     /// **Deprecated**: Use [`expose_secret`] instead.
     ///
-    /// Kept for backward compatibility with v0.5.x.
+    /// This method forwards to [`expose_secret`] for compatibility.
     #[deprecated(since = "0.5.5", note = "use `expose_secret` instead")]
     #[doc(hidden)]
     #[inline(always)]
@@ -153,6 +218,8 @@ impl<T> Fixed<T> {
     }
 
     /// **Deprecated**: Use [`expose_secret_mut`] instead.
+    ///
+    /// This method forwards to [`expose_secret_mut`] for compatibility.
     #[deprecated(since = "0.5.5", note = "use `expose_secret_mut` instead")]
     #[doc(hidden)]
     #[inline(always)]
@@ -160,16 +227,26 @@ impl<T> Fixed<T> {
         self.expose_secret_mut()
     }
 
-    /// Consume the wrapper and return the inner value.
+    /// Consumes the wrapper and returns the inner value.
     ///
-    /// This is useful when you need to pass the secret to a function that takes ownership.
+    /// Useful for passing ownership to functions expecting `T`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use secure_gate::Fixed;
+    ///
+    /// let secret: Fixed<i32> = Fixed::new(42);
+    /// let value: i32 = secret.into_inner();
+    /// assert_eq!(value, 42);
+    /// ```
     #[inline(always)]
     pub fn into_inner(self) -> T {
         self.0
     }
 }
 
-/// `Clone` is implemented when the inner type is `Clone`.
+/// Implements `Clone` when the inner type is `Clone`.
 impl<T: Clone> Clone for Fixed<T> {
     #[inline(always)]
     fn clone(&self) -> Self {
@@ -177,5 +254,5 @@ impl<T: Clone> Clone for Fixed<T> {
     }
 }
 
-/// `Copy` is implemented for small fixed-size byte arrays.
+/// Implements `Copy` for small fixed-size byte arrays.
 impl<const N: usize> Copy for Fixed<[u8; N]> where [u8; N]: Copy {}
