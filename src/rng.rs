@@ -1,8 +1,8 @@
 // src/rng.rs
 //! Cryptographically secure random generation for fixed-size secrets.
 //!
-//! This module provides the [`SecureRandomExt`] trait, which adds a `.random()`
-//! method to all `Fixed<[u8; N]>` types (including those created via [`fixed_alias!`]).
+//! This module provides the [`SecureRandomExt`] trait, which adds a `.new()`
+//! method to all `RandomBytes<N>` types (including those created via [`random_alias!`]).
 //!
 //! The implementation uses a **thread-local** `rand::rngs::OsRng` that is lazily
 //! initialized on first use. It is:
@@ -15,18 +15,17 @@
 //! # Examples
 //!
 //! ```
-//! use secure_gate::{fixed_alias, SecureRandomExt};
-//!
-//! fixed_alias!(Aes256Key, 32);
-//! fixed_alias!(XChaCha20Nonce, 24);
-//!
-//! let key: Aes256Key = Aes256Key::random();        // cryptographically secure
-//! let nonce: XChaCha20Nonce = XChaCha20Nonce::random();
-//!
-//! assert_eq!(key.len(), 32);
-//! assert_eq!(nonce.len(), 24);
-//! ```
-
+/// use secure_gate::{random_alias, SecureRandomExt};
+///
+/// random_alias!(Aes256Key, 32);
+/// random_alias!(XChaCha20Nonce, 24);
+///
+/// let key: Aes256Key = Aes256Key::new();        // cryptographically secure
+/// let nonce: XChaCha20Nonce = XChaCha20Nonce::new();
+///
+/// assert_eq!(key.len(), 32);
+/// assert_eq!(nonce.len(), 24);
+/// ```
 use rand::{rngs::OsRng, TryRngCore};
 use std::cell::RefCell;
 
@@ -45,18 +44,82 @@ thread_local! {
 pub trait SecureRandomExt {
     /// Generates a new random instance using the operating system's
     /// cryptographically secure PRNG.
-    fn random() -> Self;
+    fn new() -> Self
+    where
+        Self: Sized;
+
+    /// **Deprecated** — use `new()` instead.
+    #[deprecated(
+        since = "0.6.0",
+        note = "use `new()` instead — idiomatic and avoids self-named constructor"
+    )]
+    fn random_bytes() -> Self
+    where
+        Self: Sized,
+    {
+        Self::new()
+    }
+
+    /// **Deprecated** — use `new()` instead.
+    #[deprecated(since = "0.6.0", note = "use `new()` instead — clearer and idiomatic")]
+    fn random() -> Self
+    where
+        Self: Sized,
+    {
+        Self::new()
+    }
 }
 
-impl<const N: usize> SecureRandomExt for crate::Fixed<[u8; N]> {
+/// Fresh cryptographically-secure random bytes of exactly `N` length.
+///
+/// Construction is only possible through the RNG — you cannot build one manually.
+/// This gives compile-time assurance that the value is truly random.
+#[derive(Clone, Copy)]
+pub struct RandomBytes<const N: usize>(crate::Fixed<[u8; N]>);
+
+impl<const N: usize> RandomBytes<N> {
+    /// Explicit access — required by secure-gate’s safety rules.
     #[inline(always)]
-    fn random() -> Self {
+    pub fn expose_secret(&self) -> &[u8; N] {
+        self.0.expose_secret()
+    }
+
+    /// Mutable access when you need to overwrite (rare, but useful for some protocols).
+    #[inline(always)]
+    pub fn expose_secret_mut(&mut self) -> &mut [u8; N] {
+        self.0.expose_secret_mut()
+    }
+}
+
+// Deref so you keep all the nice Fixed methods (len, as_slice, etc.)
+impl<const N: usize> core::ops::Deref for RandomBytes<N> {
+    type Target = crate::Fixed<[u8; N]>;
+    #[inline(always)]
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+// Optional: Debug redaction
+impl<const N: usize> core::fmt::Debug for RandomBytes<N> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str("[REDACTED_RANDOM]")
+    }
+}
+
+// Impl the trait on the newtype
+impl<const N: usize> SecureRandomExt for RandomBytes<N> {
+    #[inline(always)]
+    fn new() -> Self
+    where
+        Self: Sized,
+    {
+        let mut bytes = [0u8; N];
         OS_RNG.with(|rng| {
-            let mut rng = rng.borrow_mut();
-            let mut bytes = [0u8; N];
-            rng.try_fill_bytes(&mut bytes)
-                .expect("OsRng failed to fill bytes — this should never happen");
-            Self::new(bytes)
-        })
+            rng.borrow_mut()
+                .try_fill_bytes(&mut bytes)
+                .expect("OsRng failed — this should never happen");
+        });
+        RandomBytes(crate::Fixed::new(bytes))
     }
 }

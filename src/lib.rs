@@ -24,28 +24,29 @@
 //! ```
 //! use secure_gate::{fixed_alias, dynamic_alias};
 //!
+//! #[cfg(feature = "rand")]
+//! use secure_gate::{random_alias, SecureRandomExt};
+//!
 //! fixed_alias!(Aes256Key, 32);
 //! dynamic_alias!(Password, String);
 //!
-//! // With `rand` feature
 //! #[cfg(feature = "rand")]
 //! {
-//!     use secure_gate::SecureRandomExt;
-//!     let key = Aes256Key::random();           // cryptographically secure
+//!     random_alias!(RandomAes256Key, 32);
+//!     let key = RandomAes256Key::new();
 //!     let _ = key.expose_secret();
 //! }
 //!
-//! // With `conversions` feature
 //! #[cfg(all(feature = "rand", feature = "conversions"))]
 //! {
-//!     use secure_gate::{SecureConversionsExt, SecureRandomExt};
-//!     let key = Aes256Key::random();
-//!     let hex = key.to_hex();                   // "a1b2c3d4..."
-//!     let b64 = key.to_base64url();             // safe for JSON
-//!     assert!(key.ct_eq(&key));                 // constant-time equality
+//!     use secure_gate::{SecureConversionsExt};
+//!     random_alias!(RandomAes256Key, 32);
+//!     let key = RandomAes256Key::new();
+//!     let hex = key.expose_secret().to_hex();
+//!     let b64 = key.expose_secret().to_base64url();
+//!     assert!(key.expose_secret().ct_eq(key.expose_secret()));
 //! }
 //!
-//! // Heap secrets — beautiful ergonomics
 //! let pw: Password = "hunter2".into();
 //! assert_eq!(pw.expose_secret(), "hunter2");
 //! ```
@@ -90,7 +91,7 @@ pub use ::zeroize::{Zeroize, ZeroizeOnDrop};
 pub mod rng;
 
 #[cfg(feature = "rand")]
-pub use rng::SecureRandomExt;
+pub use rng::{RandomBytes, SecureRandomExt};
 
 // Conversions integration (opt-in)
 #[cfg(feature = "conversions")]

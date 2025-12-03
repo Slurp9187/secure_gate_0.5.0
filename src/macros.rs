@@ -133,3 +133,11 @@ macro_rules! dynamic_alias {
         pub type $name = $crate::Dynamic<$ty>;
     };
 }
+
+// (Your existing code + updated macro)
+#[macro_export]
+macro_rules! random_alias {
+    ($name:ident, $size:literal) => {
+        pub type $name = $crate::RandomBytes<$size>;
+    };
+}
