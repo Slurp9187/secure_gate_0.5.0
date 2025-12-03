@@ -69,13 +69,13 @@ PACKAGES = [
         "file_pattern": "*.rs",
         "description": "Fuzzing targets",
     },
-    {
-        "suffix": "mod",
-        "root_files": [],
-        "include_dirs": ["src", "tests"],
-        "file_pattern": "mod.rs",
-        "description": "Only mod.rs files from src/ and tests/ (module structure overview)",
-    },
+    # {
+    #     "suffix": "mod",
+    #     "root_files": [],
+    #     "include_dirs": ["src", "tests"],
+    #     "file_pattern": "mod.rs",
+    #     "description": "Only mod.rs files from src/ and tests/ (module structure overview)",
+    # },
 ]
 
 # =================================================================
