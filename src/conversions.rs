@@ -238,9 +238,9 @@ impl ExposeSecret<String> for RandomHex {
 #[cfg(all(feature = "rand", feature = "conversions"))]
 #[test]
 fn random_hex_returns_randomhex() {
-    use crate::{random_alias, SecureRandomExt};
+    use crate::{fixed_alias_rng, SecureRandomExt};
 
-    random_alias!(HexKey, 32);
+    fixed_alias_rng!(HexKey, 32);
 
     let hex = HexKey::random_hex();
     let _: RandomHex = hex;

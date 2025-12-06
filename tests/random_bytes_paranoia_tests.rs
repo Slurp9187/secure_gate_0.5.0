@@ -5,7 +5,7 @@
 
 #![cfg(feature = "rand")]
 
-use secure_gate::{random_alias, RandomBytes, SecureRandomExt}; // ← THIS LINE WAS MISSING
+use secure_gate::{fixed_alias_rng, RandomBytes, SecureRandomExt}; // ← THIS LINE WAS MISSING
 
 fn expose<const N: usize>(rb: &RandomBytes<N>) -> &[u8; N] {
     rb.expose_secret()
@@ -13,7 +13,7 @@ fn expose<const N: usize>(rb: &RandomBytes<N>) -> &[u8; N] {
 
 #[test]
 fn basic_generation() {
-    random_alias!(Key32, 32);
+    fixed_alias_rng!(Key32, 32);
     let a = Key32::new();
     let b = Key32::new();
     assert_ne!(expose(&a), expose(&b));
@@ -22,7 +22,7 @@ fn basic_generation() {
 
 #[test]
 fn deprecated_names_still_work() {
-    random_alias!(Legacy32, 32);
+    fixed_alias_rng!(Legacy32, 32);
 
     #[allow(deprecated)]
     {
@@ -47,7 +47,7 @@ fn deprecated_names_still_work() {
 
 #[test]
 fn macro_generates_all_methods() {
-    random_alias!(MacroTest, 32);
+    fixed_alias_rng!(MacroTest, 32);
     let _ = MacroTest::new();
     #[allow(deprecated)]
     let _ = MacroTest::random();
@@ -57,15 +57,15 @@ fn macro_generates_all_methods() {
 
 #[test]
 fn debug_is_redacted() {
-    random_alias!(DebugTest, 32);
+    fixed_alias_rng!(DebugTest, 32);
     let rb = DebugTest::new();
     assert_eq!(format!("{rb:?}"), "[REDACTED_RANDOM]");
 }
 
 #[test]
 fn different_aliases_are_different_types() {
-    random_alias!(TypeA, 32);
-    random_alias!(TypeB, 32);
+    fixed_alias_rng!(TypeA, 32);
+    fixed_alias_rng!(TypeB, 32);
     let a = TypeA::new();
     let _ = a;
     // let _wrong: TypeB = a; // ← does not compile — perfect!

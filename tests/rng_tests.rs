@@ -3,12 +3,12 @@
 
 #![cfg(feature = "rand")]
 
-use secure_gate::{random_alias, SecureRandomExt};
+use secure_gate::{fixed_alias_rng, SecureRandomExt};
 
 #[test]
 fn random_bytes_generates_different_values() {
-    random_alias!(TestKey32, 32);
-    random_alias!(TestKey16, 16);
+    fixed_alias_rng!(TestKey32, 32);
+    fixed_alias_rng!(TestKey16, 16);
 
     let key1 = TestKey32::new();
     let key2 = TestKey32::new();
