@@ -1,8 +1,7 @@
 // fuzz/fuzz_targets/serde.rs
 //
 // Fuzz target for all serde (de)serialization paths — untrusted input!
-// (v0.5.0 – SecureGate, SecurePassword gone; Dynamic deserializes blocked for security;
-// test Fixed deserial, Dynamic serial + manual wrap)
+// Fully updated for v0.6.0 — explicit exposure only, no Deref, zero silent leaks
 #![no_main]
 use arbitrary::{Arbitrary, Unstructured};
 use libfuzzer_sys::fuzz_target;
@@ -16,13 +15,15 @@ use serde_json;
 #[cfg(feature = "serde")]
 use bincode;
 
-const MAX_INPUT: usize = 1_048_576; // 1 MiB -- OOM-safe
+const MAX_INPUT: usize = 1_048_576; // 1 MiB — OOM-safe
 
 fuzz_target!(|data: &[u8]| {
     if data.is_empty() {
         return;
     }
+
     let mut u = Unstructured::new(data);
+
     let _fixed_32 = match FuzzFixed32::arbitrary(&mut u) {
         Ok(f) => f.0,
         Err(_) => return,
@@ -35,10 +36,12 @@ fuzz_target!(|data: &[u8]| {
         Ok(d) => d.0,
         Err(_) => return,
     };
-    let fuzz_data = dyn_vec.expose_secret().as_slice(); // Use fuzzed vec as "data"
+
+    let fuzz_data = dyn_vec.expose_secret().as_slice();
     if fuzz_data.len() > MAX_INPUT {
         return;
     }
+
     // -------------------------------------------------
     // All serde-dependent code is inside these cfg blocks
     // -------------------------------------------------
@@ -51,6 +54,7 @@ fuzz_target!(|data: &[u8]| {
             let json_arr = format!("[{zeros},{last_digit}]");
             let _ = serde_json::from_str::<Fixed<[u8; 32]>>(&json_arr);
         }
+
         // JSON → Dynamic<String> deserialization BLOCKED (must fail with security message)
         if let Err(err) = serde_json::from_slice::<Dynamic<String>>(fuzz_data) {
             let msg = err.to_string();
@@ -61,9 +65,11 @@ fuzz_target!(|data: &[u8]| {
         } else {
             panic!("Dynamic<String> deserialized from untrusted input — SECURITY BUG");
         }
+
         // Serialization of Dynamic<Vec<u8>> → JSON (must work)
         let dyn_vec_ser = dyn_vec.clone();
         let _ = serde_json::to_vec(&dyn_vec_ser);
+
         // Bincode → Vec<u8> → wrap into Dynamic<Vec<u8>> manually (safe path)
         let config = bincode::config::standard().with_limit::<MAX_INPUT>();
         if let Ok((vec, _)) = bincode::decode_from_slice::<Vec<u8>, _>(fuzz_data, config) {
@@ -71,13 +77,15 @@ fuzz_target!(|data: &[u8]| {
                 return;
             }
             let sec = Dynamic::<Vec<u8>>::new(vec);
-            let _ = sec.len();
-            drop(sec); // ← Minor addition: stress drop/zeroization
+            let _ = sec.expose_secret().len(); // ← explicit
+            drop(sec); // stress drop/zeroization
         }
+
         // Serialization of Dynamic<String> → Bincode (must work)
         let dyn_str_ser = dyn_str.clone();
-        let _ = bincode::encode_to_vec(&*dyn_str_ser, config);
+        let _ = bincode::encode_to_vec(dyn_str_ser.expose_secret(), config); // ← explicit
     }
+
     // Large-input stress — still useful even without serde
     if fuzz_data.len() >= 1024 {
         for i in 1..=5 {
