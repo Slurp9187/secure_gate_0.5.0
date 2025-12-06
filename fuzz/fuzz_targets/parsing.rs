@@ -1,7 +1,7 @@
 // fuzz/fuzz_targets/parsing.rs
 //
 // Fuzz target for all parsing paths — Dynamic<String>, Dynamic<Vec<u8>>, and extreme allocation stress
-// (v0.5.0 – SecureStr, SecureBytes, SecurePassword, etc. are gone; use Dynamic<T> + Fixed<T>)
+// Fully v0.6.0 clean — explicit exposure everywhere, no Deref, zero silent leaks
 #![no_main]
 use arbitrary::{Arbitrary, Unstructured};
 use libfuzzer_sys::fuzz_target;
@@ -33,12 +33,12 @@ fuzz_target!(|data: &[u8]| {
 
     // 1. Dynamic<Vec<u8>> — raw arbitrary bytes (no UTF-8 required)
     let dyn_bytes = dyn_vec.clone();
-    let _ = dyn_bytes.len();
+    let _ = dyn_bytes.expose_secret().len(); // ← explicit
 
     // 2. UTF-8 path — only if valid
     let s = dyn_str.expose_secret().clone();
     let dyn_str_new = Dynamic::<String>::new(s.clone());
-    let _ = dyn_str_new.len();
+    let _ = dyn_str_new.expose_secret().len(); // ← explicit
 
     // Stress: clone + to_string
     let cloned = dyn_str_new.clone();
@@ -59,7 +59,7 @@ fuzz_target!(|data: &[u8]| {
     }
 
     // 3. Mutation stress — lossy UTF-8 → owned String → Dynamic<String>
-    let owned = s.clone(); // Reuse fuzzed string
+    let owned = s.clone();
     let mut dyn_str_mut = Dynamic::<String>::new(owned);
     dyn_str_mut.expose_secret_mut().push('!');
     dyn_str_mut.expose_secret_mut().push_str("_fuzz");
@@ -78,7 +78,7 @@ fuzz_target!(|data: &[u8]| {
             .copied()
             .collect::<Vec<u8>>();
         let repeated_dyn: Dynamic<Vec<u8>> = Dynamic::new(repeated);
-        let _ = repeated_dyn.len();
+        let _ = repeated_dyn.expose_secret().len(); // ← explicit
     }
 
     // Final drop — triggers zeroization when feature enabled
