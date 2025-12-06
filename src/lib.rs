@@ -1,4 +1,3 @@
-// src/lib.rs
 //! # secure-gate: Zero-cost secure wrappers for secrets
 //!
 //! This crate provides safe, ergonomic wrappers for handling sensitive data in memory
@@ -8,7 +7,9 @@
 //! Key components:
 //! - [`Fixed<T>`]: Stack-allocated for fixed-size secrets (e.g., keys, nonces).
 //! - [`Dynamic<T>`]: Heap-allocated for dynamic secrets (e.g., passwords, vectors).
-//! - Zeroizing variants: [`FixedZeroizing<T>`] and [`DynamicZeroizing<T>`] for auto-wiping (with `zeroize` feature).
+//! - Zeroizing variants: [`FixedNoClone<T>`] and [`DynamicNoClone<T>`] for auto-wiping (with `zeroize` feature).
+//!   - Note: These leverage `zeroize::Zeroizing` and `secrecy::SecretBox` under the hood. Import traits like
+//!     `Zeroize` and `ZeroizeOnDrop` directly from the `zeroize` crate if needed.
 //! - Macros: [`fixed_alias!`], [`dynamic_alias!`], [`fixed_alias_rng!`], [`dynamic_alias_rng!`] for ergonomic usage.
 //!
 //! # Features
@@ -74,16 +75,7 @@ pub use fixed::Fixed;
 
 // Zeroize integration (opt-in)
 #[cfg(feature = "zeroize")]
-pub use no_clone::DynamicNoClone;
-#[cfg(feature = "zeroize")]
-pub use no_clone::FixedNoClone;
-
-// Re-export Zeroizing cleanly — no privacy conflict
-#[cfg(feature = "zeroize")]
-pub type Zeroizing<T> = ::zeroize::Zeroizing<T>;
-
-#[cfg(feature = "zeroize")]
-pub use ::zeroize::{Zeroize, ZeroizeOnDrop};
+pub use no_clone::{DynamicNoClone, FixedNoClone};
 
 // RNG integration (opt-in)
 #[cfg(feature = "rand")]
@@ -97,6 +89,4 @@ pub use rng::{DynamicRng, FixedRng};
 pub use conversions::SecureConversionsExt;
 
 #[cfg(all(feature = "rand", feature = "conversions"))]
-pub use conversions::HexString;
-#[cfg(all(feature = "rand", feature = "conversions"))]
-pub use conversions::RandomHex;
+pub use conversions::{HexString, RandomHex};
