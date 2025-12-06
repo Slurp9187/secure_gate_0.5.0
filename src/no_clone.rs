@@ -1,4 +1,4 @@
-// src/zeroize.rs
+// src/no_clone.rs
 //! Zeroizing wrappers that automatically wipe sensitive data on drop.
 //!
 //! This module is only compiled when the `zeroize` feature is enabled.
@@ -7,8 +7,8 @@
 //!
 //! | Type                     | Underlying implementation          | Access method                     | Notes |
 //! |--------------------------|-------------------------------------|-----------------------------------|-------|
-//! | `FixedZeroizing<T>`      | `zeroize::Zeroizing<T>` (re-export) | `&*value` or `.deref()`           | Stack-only, zero-cost |
-//! | `DynamicZeroizing<T>`    | `secrecy::SecretBox<T>` wrapper     | `.expose_secret()` / `.expose_secret_mut()` | Heap-only, prevents cloning |
+//! | `FixedNoClone<T>`        | `zeroize::Zeroizing<T>` (re-export) | `&*value` or `.deref()`           | Stack-only, zero-cost |
+//! | `DynamicNoClone<T>`      | `secrecy::SecretBox<T>` wrapper     | `.expose_secret()` / `.expose_secret_mut()` | Heap-only, prevents cloning |
 //!
 //! Both types implement `ZeroizeOnDrop` and wipe the contained secret
 //! (including spare capacity for `Vec<u8>`/`String`) when dropped.
@@ -16,16 +16,16 @@
 //! # Examples
 //!
 //! ```
-//! use secure_gate::{DynamicZeroizing, FixedZeroizing};
+//! use secure_gate::{DynamicNoClone, FixedNoClone};
 //! use secrecy::ExposeSecret;
 //!
 //! // Fixed-size zeroizing secret
-//! let key = FixedZeroizing::new([42u8; 32]);
+//! let key = FixedNoClone::new([42u8; 32]);
 //! assert_eq!(key[..], [42u8; 32]);
 //! drop(key); // memory is zeroed here
 //!
 //! // Heap-allocated zeroizing secret
-//! let pw: DynamicZeroizing<String> = "hunter2".into();
+//! let pw: DynamicNoClone<String> = "hunter2".into();
 //! assert_eq!(pw.expose_secret(), "hunter2");
 //! drop(pw); // both used bytes and spare capacity are zeroed
 //! ```
@@ -51,7 +51,7 @@ pub struct DynamicNoClone<T: ?Sized + Zeroize>(SecretBox<T>);
 
 #[cfg(feature = "zeroize")]
 impl<T: ?Sized + Zeroize> DynamicNoClone<T> {
-    /// Creates a new `DynamicZeroizing` from a boxed value.
+    /// Creates a new `DynamicNoClone` from a boxed value.
     ///
     /// The boxed value will be zeroed (including spare capacity) on drop.
     #[inline(always)]

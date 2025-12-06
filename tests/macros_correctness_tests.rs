@@ -1,13 +1,17 @@
 // tests/macros_correctness_tests.rs
-//! Exhaustive macro correctness and safety tests
+//! Exhaustive tests for macro correctness and safety
 //!
-//! These tests ensure every public macro works exactly as documented,
-//! across all feature combinations, and cannot be broken by future refactors.
+//! These tests ensure all public macros work exactly as documented,
+//! across all feature combinations, and cannot be broken by future changes.
 
 #![cfg(test)]
 
+use secure_gate::{dynamic_alias, fixed_alias};
+
+// Only import RNG-related items when the `rand` feature is enabled
+#[cfg(feature = "rand")]
 use secure_gate::{
-    dynamic_alias, dynamic_alias_rng, fixed_alias, fixed_alias_rng,
+    dynamic_alias_rng, fixed_alias_rng,
     rng::{DynamicRng, FixedRng},
 };
 
@@ -54,7 +58,7 @@ fn fixed_alias_rng_basics() {
 
     let n1 = Nonce::rng();
     assert_eq!(n1.len(), 24);
-    assert_ne!(*n1.expose_secret(), [0u8; 24]); // sanity check
+    assert_ne!(*n1.expose_secret(), [0u8; 24]);
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -98,27 +102,8 @@ fn random_hex_via_alias() {
 
     assert_eq!(hex.expose_secret().len(), 64);
     assert!(hex.expose_secret().chars().all(|c| c.is_ascii_hexdigit()));
-    assert!(hex.expose_secret().chars().all(|c| !c.is_uppercase())); // ensure no uppercase letters
+    assert!(hex.expose_secret().chars().all(|c| !c.is_uppercase()));
 
     let bytes = hex.to_bytes();
     assert_eq!(bytes.len(), 32);
-}
-
-// ──────────────────────────────────────────────────────────────
-// Ensure no deprecated random APIs exist (compile-fail guard)
-// ──────────────────────────────────────────────────────────────
-#[cfg(feature = "rand")]
-mod no_deprecated_random_api {
-    use secure_gate::fixed_alias_rng;
-
-    fixed_alias_rng!(Check, 32);
-
-    // These must fail to compile — that's the point!
-    // If any of these lines compile → the security invariant is broken.
-    // #[allow(dead_code)]
-    // fn bad() {
-    //     let _ = Check::new();
-    //     let _ = Check::random();
-    //     let _ = Check::random_bytes();
-    // }
 }
