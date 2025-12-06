@@ -1,7 +1,7 @@
 // fuzz/fuzz_targets/clone.rs
 #![no_main]
 
-use arbitrary::{Arbitrary, Unstructured}; // ← THIS LINE WAS MISSING
+use arbitrary::{Arbitrary, Unstructured};
 use libfuzzer_sys::fuzz_target;
 use secure_gate::{Dynamic, Fixed};
 use secure_gate_fuzz::arbitrary::{FuzzDynamicString, FuzzDynamicVec, FuzzFixed32};
@@ -41,7 +41,8 @@ fuzz_target!(|data: &[u8]| {
         {
             let mut empty = Dynamic::<Vec<u8>>::new(Vec::new());
             empty.zeroize();
-            if !empty.is_empty() {
+            if !empty.expose_secret().is_empty() {
+                // ← fixed
                 return;
             }
         }
@@ -51,33 +52,37 @@ fuzz_target!(|data: &[u8]| {
     let original_data = dyn_vec.expose_secret().clone();
     let mut original = Dynamic::<Vec<u8>>::new(original_data.clone());
     let mut clone = original.clone();
-    clone.push(0xFF);
+    clone.expose_secret_mut().push(0xFF); // ← safer than .push() on wrapper
 
     if original.expose_secret() != &original_data {
         return;
     }
-    if clone.len() != original_data.len() + 1 {
+    if clone.expose_secret().len() != original_data.len() + 1 {
+        // ← fixed
         return;
     }
-    if &clone[..original_data.len()] != &original_data[..] {
+    if &clone.expose_secret()[..original_data.len()] != &original_data[..] {
         return;
     }
-    if clone[original_data.len()] != 0xFF {
+    if clone.expose_secret()[original_data.len()] != 0xFF {
         return;
     }
 
     // Test 3: Original mutation doesn't affect clone
-    original.push(0xAA);
-    if clone.len() != original_data.len() + 1 {
+    original.expose_secret_mut().push(0xAA);
+    if clone.expose_secret().len() != original_data.len() + 1 {
+        // ← fixed
         return;
     }
 
     // Test 4: Zeroization
     #[cfg(feature = "zeroize")]
     {
-        let pre_len = original.len();
+        let pre_len = original.expose_secret().len();
         original.zeroize();
-        if original.len() != pre_len || !original.expose_secret().iter().all(|&b| b == 0) {
+        if original.expose_secret().len() != pre_len
+            || !original.expose_secret().iter().all(|&b| b == 0)
+        {
             return;
         }
     }
