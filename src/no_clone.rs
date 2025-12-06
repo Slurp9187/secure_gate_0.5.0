@@ -1,149 +1,170 @@
 // src/no_clone.rs
-//! Zeroizing wrappers that automatically wipe sensitive data on drop.
+//! Unconditional, compiler-enforced non-cloneable secret wrappers.
 //!
-//! This module is only compiled when the `zeroize` feature is enabled.
+//! These types are **never** `Clone` or `Copy` — under any feature combination.
+//! They exist solely to make accidental duplication of master keys, HSM seeds,
+//! or root passwords a **hard compiler error**.
 //!
-//! ### Types
+//! Use via `.no_clone()` — loud, intentional, and per-variable.
 //!
-//! | Type                     | Underlying implementation          | Access method                     | Notes |
-//! |--------------------------|-------------------------------------|-----------------------------------|-------|
-//! | `FixedNoClone<T>`        | `zeroize::Zeroizing<T>` (re-export) | `&*value` or `.deref()`           | Stack-only, zero-cost |
-//! | `DynamicNoClone<T>`      | `secrecy::SecretBox<T>` wrapper     | `.expose_secret()` / `.expose_secret_mut()` | Heap-only, prevents cloning |
-//!
-//! Both types implement `ZeroizeOnDrop` and wipe the contained secret
-//! (including spare capacity for `Vec<u8>`/`String`) when dropped.
-//!
-//! # Examples
-//!
-//! ```
-//! use secure_gate::{DynamicNoClone, FixedNoClone};
-//! use secrecy::ExposeSecret;
-//!
-//! // Fixed-size zeroizing secret
-//! let key = FixedNoClone::new([42u8; 32]);
-//! assert_eq!(key[..], [42u8; 32]);
-//! drop(key); // memory is zeroed here
-//!
-//! // Heap-allocated zeroizing secret
-//! let pw: DynamicNoClone<String> = "hunter2".into();
-//! assert_eq!(pw.expose_secret(), "hunter2");
-//! drop(pw); // both used bytes and spare capacity are zeroed
-//! ```
+//! This is the crown jewel of secure-gate 0.6.0.
 
-#[cfg(feature = "zeroize")]
-use zeroize::{DefaultIsZeroes, Zeroize, ZeroizeOnDrop, Zeroizing};
+use core::fmt;
+use core::marker::PhantomData;
+use core::ops::{Deref, DerefMut};
 
-#[cfg(feature = "zeroize")]
-use secrecy::{ExposeSecret, SecretBox};
+extern crate alloc;
+use alloc::boxed::Box;
 
-#[cfg(feature = "zeroize")]
-/// Re-export of `zeroize::Zeroizing<T>` for stack-allocated secrets.
-///
-/// This is the canonical zeroizing wrapper for fixed-size data.
-pub type FixedNoClone<T> = Zeroizing<T>;
+/// Private marker to prevent `Clone`/`Copy` — stable Rust workaround for negative impls.
+#[doc(hidden)]
+pub enum PhantomNonClone {}
 
-#[cfg(feature = "zeroize")]
-/// Zeroizing wrapper for heap-allocated secrets.
-///
-/// Uses `secrecy::SecretBox<T>` internally to prevent accidental cloning
-/// while still providing zeroization of the full allocation (including spare capacity).
-pub struct DynamicNoClone<T: ?Sized + Zeroize>(SecretBox<T>);
+/// Stack-allocated secret that can **never** be cloned or copied.
+pub struct FixedNoClone<T>(T, PhantomData<PhantomNonClone>);
 
-#[cfg(feature = "zeroize")]
-impl<T: ?Sized + Zeroize> DynamicNoClone<T> {
-    /// Creates a new `DynamicNoClone` from a boxed value.
-    ///
-    /// The boxed value will be zeroed (including spare capacity) on drop.
+/// Heap-allocated secret that can **never** be cloned.
+pub struct DynamicNoClone<T: ?Sized>(Box<T>, PhantomData<PhantomNonClone>);
+
+// ───── Constructors ─────
+
+impl<T> FixedNoClone<T> {
+    /// Create a new non-cloneable fixed secret.
+    #[inline(always)]
+    pub const fn new(value: T) -> Self {
+        FixedNoClone(value, PhantomData)
+    }
+}
+
+impl<T: ?Sized> DynamicNoClone<T> {
+    /// Create a new non-cloneable dynamic secret from a boxed value.
     #[inline(always)]
     pub fn new(value: Box<T>) -> Self {
-        Self(SecretBox::new(value))
+        DynamicNoClone(value, PhantomData)
     }
 }
 
-#[cfg(feature = "zeroize")]
-impl<T: ?Sized + Zeroize> core::fmt::Debug for DynamicNoClone<T> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str("[REDACTED]")
-    }
-}
+// ───── Core ergonomics (identical to Fixed/Dynamic) ─────
 
-#[cfg(feature = "zeroize")]
-impl<S: ?Sized + Zeroize> ExposeSecret<S> for DynamicNoClone<S> {
+impl<T> Deref for FixedNoClone<T> {
+    type Target = T;
     #[inline(always)]
-    fn expose_secret(&self) -> &S {
-        self.0.expose_secret()
+    fn deref(&self) -> &T {
+        &self.0
     }
 }
 
+impl<T> DerefMut for FixedNoClone<T> {
+    #[inline(always)]
+    fn deref_mut(&mut self) -> &mut T {
+        &mut self.0
+    }
+}
+
+impl<T: ?Sized> Deref for DynamicNoClone<T> {
+    type Target = T;
+    #[inline(always)]
+    fn deref(&self) -> &T {
+        &self.0
+    }
+}
+
+impl<T: ?Sized> DerefMut for DynamicNoClone<T> {
+    #[inline(always)]
+    fn deref_mut(&mut self) -> &mut T {
+        &mut self.0
+    }
+}
+
+impl<T> fmt::Debug for FixedNoClone<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("[REDACTED_NO_CLONE]")
+    }
+}
+
+impl<T: ?Sized> fmt::Debug for DynamicNoClone<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("[REDACTED_NO_CLONE]")
+    }
+}
+
+// ───── Canonical secret access ─────
+
+impl<T> FixedNoClone<T> {
+    #[inline(always)]
+    pub fn expose_secret(&self) -> &T {
+        &self.0
+    }
+
+    #[inline(always)]
+    pub fn expose_secret_mut(&mut self) -> &mut T {
+        &mut self.0
+    }
+
+    #[inline(always)]
+    pub fn into_inner(self) -> T {
+        self.0
+    }
+}
+
+impl<T: ?Sized> DynamicNoClone<T> {
+    #[inline(always)]
+    pub fn expose_secret(&self) -> &T {
+        &self.0
+    }
+
+    #[inline(always)]
+    pub fn expose_secret_mut(&mut self) -> &mut T {
+        &mut self.0
+    }
+
+    #[inline(always)]
+    pub fn into_inner(self) -> Box<T> {
+        self.0
+    }
+}
+
+// ───── Specialized helpers (finish_mut) ─────
+
+impl DynamicNoClone<String> {
+    /// Shrink capacity to exact length — eliminates slack.
+    pub fn finish_mut(&mut self) -> &mut String {
+        let s = &mut **self;
+        s.shrink_to_fit();
+        s
+    }
+}
+
+impl DynamicNoClone<Vec<u8>> {
+    /// Shrink capacity to exact length — eliminates slack.
+    pub fn finish_mut(&mut self) -> &mut Vec<u8> {
+        let v = &mut **self;
+        v.shrink_to_fit();
+        v
+    }
+}
+
+// ───── Zeroize integration (only when enabled) ─────
+
 #[cfg(feature = "zeroize")]
-impl<T: Zeroize + DefaultIsZeroes> Zeroize for DynamicNoClone<T> {
+use zeroize::{Zeroize, ZeroizeOnDrop};
+
+#[cfg(feature = "zeroize")]
+impl<T: Zeroize> Zeroize for FixedNoClone<T> {
     fn zeroize(&mut self) {
         self.0.zeroize();
     }
 }
+
+#[cfg(feature = "zeroize")]
+impl<T: ?Sized + Zeroize> Zeroize for DynamicNoClone<T> {
+    fn zeroize(&mut self) {
+        (**self).zeroize();
+    }
+}
+
+#[cfg(feature = "zeroize")]
+impl<T: Zeroize> ZeroizeOnDrop for FixedNoClone<T> {}
 
 #[cfg(feature = "zeroize")]
 impl<T: ?Sized + Zeroize> ZeroizeOnDrop for DynamicNoClone<T> {}
-
-/// Convenience conversions from non-zeroizing wrappers.
-#[cfg(feature = "zeroize")]
-impl<T: Zeroize> From<crate::Fixed<T>> for FixedNoClone<T> {
-    #[inline(always)]
-    fn from(fixed: crate::Fixed<T>) -> Self {
-        Zeroizing::new(fixed.0)
-    }
-}
-
-#[cfg(feature = "zeroize")]
-impl<T: ?Sized + Zeroize> From<crate::Dynamic<T>> for DynamicNoClone<T> {
-    #[inline(always)]
-    fn from(dynamic: crate::Dynamic<T>) -> Self {
-        Self(SecretBox::new(dynamic.0))
-    }
-}
-
-/// Zeroize impls for the non-zeroizing wrappers when the `zeroize` feature is active.
-#[cfg(feature = "zeroize")]
-impl<T: Zeroize> Zeroize for crate::Fixed<T> {
-    fn zeroize(&mut self) {
-        self.0.zeroize();
-    }
-}
-
-#[cfg(feature = "zeroize")]
-impl<T: Zeroize + DefaultIsZeroes> Zeroize for crate::Dynamic<T> {
-    fn zeroize(&mut self) {
-        self.0.zeroize();
-    }
-}
-
-#[cfg(feature = "zeroize")]
-impl<T: Zeroize> ZeroizeOnDrop for crate::Fixed<T> {}
-
-#[cfg(feature = "zeroize")]
-impl<T: ?Sized + Zeroize> ZeroizeOnDrop for crate::Dynamic<T> {}
-
-/// Ergonomic `.into()` support for zeroizing heap secrets.
-#[cfg(feature = "zeroize")]
-impl<T: Zeroize + Send + 'static> From<T> for DynamicNoClone<T> {
-    #[inline(always)]
-    fn from(value: T) -> Self {
-        Self::new(Box::new(value))
-    }
-}
-
-#[cfg(feature = "zeroize")]
-impl<T: Zeroize + DefaultIsZeroes + Send + 'static> From<Box<T>> for DynamicNoClone<T> {
-    #[inline(always)]
-    fn from(boxed: Box<T>) -> Self {
-        Self::new(boxed)
-    }
-}
-
-#[cfg(feature = "zeroize")]
-impl From<&str> for DynamicNoClone<String> {
-    #[inline(always)]
-    fn from(s: &str) -> Self {
-        Self::new(Box::new(s.to_string()))
-    }
-}
