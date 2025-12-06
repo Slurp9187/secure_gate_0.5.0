@@ -53,10 +53,3 @@ full = ["zeroize", "serde", "rand", "conversions"]
 [[bench]]
 name = "fixed_vs_raw"
 harness = false
-
-
-[package.metadata.docs.rs]
-all-features = true
-
-# ← ADD THIS LINE (temporary!)
-doctest = false
