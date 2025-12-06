@@ -5,6 +5,30 @@ All changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),  
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2025-12-06
+
+### Breaking Changes
+- Removed `Deref`/`DerefMut` from `Fixed<T>` (`src/fixed.rs`) – eliminates all silent borrowing of secret data.
+- Made the inner field of `Fixed<T>` private (`src/fixed.rs`).
+- Removed all inherent conversion methods (`.to_hex()`, `.to_hex_upper()`, `.to_base64url()`, `.ct_eq()`) from `Fixed<[u8; N]>` and aliases.
+- `SecureConversionsExt` is now implemented **only** on `[u8]` and `[u8; N]` (`src/conversions.rs`) – every conversion now **requires** an explicit `.expose_secret()` call.
+- Removed deprecated direct-conversion shims that were present in 0.5.x.
+- Replaced `RandomBytes<N>` implementation with `FixedRng<N>` and introduced proper `SecureRandomExt` trait (`src/rng.rs`).
+- Switched RNG implementation to use `rand_core::TryRngCore` and `rand::rngs::OsRng` correctly; added `rand_core` optional dependency.
+- `DynamicRng::generate_string` now uses unbiased rejection sampling for base62 output.
+
+### Added
+- `len()` and `is_empty()` on `Fixed<[u8; N]>` (`src/fixed.rs`).
+- Compile-time negative impl guard preventing future accidental `SecureConversionsExt` impls on `Fixed` (`src/conversions.rs`).
+- `rand_core = { version = "0.9", optional = true }` dependency.
+
+### Fixed
+- Lifetime bug in `FixedRng::<N>::random_hex()` (`src/conversions.rs`).
+- Incorrect `ct_eq` trait bounds on fixed-size arrays (now uses `.as_slice()`).
+- Numerous test failures caused by old silent-access patterns – all tests now use explicit `.expose_secret()`.
+
+The crate now fully enforces that **every access to secret bytes is loud, intentional, and grep-able**. No silent leaks remain.
+
 ## [0.5.10] - 2025-12-02
 
 ### Added
