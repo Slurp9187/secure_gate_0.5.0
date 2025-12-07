@@ -1,19 +1,57 @@
 // ==========================================================================
 // src/rng.rs
 // ==========================================================================
+
 use crate::{Dynamic, Fixed};
 use rand::rngs::OsRng;
 use rand::TryRngCore;
 
 /// Fixed-length cryptographically secure random value.
 ///
-/// Can only be constructed via `.generate()` — guarantees freshness from the OS RNG.
+/// This is a newtype over `Fixed<[u8; N]>` that enforces construction only via secure RNG.
+/// Guarantees freshness — cannot be created from arbitrary bytes.
+///
+/// Requires the "rand" feature.
+///
+/// # Examples
+///
+/// Basic usage:
+/// ```
+/// # #[cfg(feature = "rand")]
+/// # {
+/// use secure_gate::rng::FixedRng;
+/// let random: FixedRng<32> = FixedRng::generate();
+/// assert_eq!(random.len(), 32);
+/// # }
+/// ```
+///
+/// With alias:
+/// ```
+/// # #[cfg(feature = "rand")]
+/// # {
+/// use secure_gate::fixed_alias_rng;
+/// fixed_alias_rng!(Nonce, 24);
+/// let nonce = Nonce::generate();
+/// # }
+/// ```
 pub struct FixedRng<const N: usize>(Fixed<[u8; N]>);
 
 impl<const N: usize> FixedRng<N> {
-    /// Generate a fresh random value using the OS RNG.
+    /// Generate fresh random bytes using the OS RNG.
     ///
-    /// Panics on RNG failure — this is intentional and correct for high-assurance crypto code.
+    /// Uses `rand::rngs::OsRng` directly for maximum throughput.
+    /// Panics if the RNG fails (rare, but correct for crypto code).
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # #[cfg(feature = "rand")]
+    /// # {
+    /// use secure_gate::rng::FixedRng;
+    /// let random = FixedRng::<16>::generate();
+    /// assert!(!random.is_empty());
+    /// # }
+    /// ```
     pub fn generate() -> Self {
         let mut bytes = [0u8; N];
         OsRng
@@ -22,19 +60,30 @@ impl<const N: usize> FixedRng<N> {
         Self(Fixed::new(bytes))
     }
 
-    /// Expose the secret bytes (read-only).
+    /// Expose the random bytes for read-only access.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # #[cfg(feature = "rand")]
+    /// # {
+    /// use secure_gate::rng::FixedRng;
+    /// let random = FixedRng::<4>::generate();
+    /// let bytes = random.expose_secret();
+    /// # }
+    /// ```
     #[inline(always)]
     pub fn expose_secret(&self) -> &[u8; N] {
         self.0.expose_secret()
     }
 
-    /// Returns the fixed length of this random value.
+    /// Returns the fixed length in bytes.
     #[inline(always)]
     pub const fn len(&self) -> usize {
         N
     }
 
-    /// Returns true if the random value has zero length.
+    /// Returns `true` if the length is zero.
     #[inline(always)]
     pub const fn is_empty(&self) -> bool {
         N == 0
@@ -48,10 +97,38 @@ impl<const N: usize> core::fmt::Debug for FixedRng<N> {
 }
 
 /// Heap-allocated cryptographically secure random bytes.
+///
+/// This is a newtype over `Dynamic<Vec<u8>>` for semantic clarity.
+/// Like `FixedRng`, guarantees freshness via RNG construction.
+///
+/// Requires the "rand" feature.
+///
+/// # Examples
+///
+/// ```
+/// # #[cfg(feature = "rand")]
+/// # {
+/// use secure_gate::rng::DynamicRng;
+/// let random = DynamicRng::generate(64);
+/// assert_eq!(random.len(), 64);
+/// # }
+/// ```
 pub struct DynamicRng(Dynamic<Vec<u8>>);
 
 impl DynamicRng {
-    /// Generate a fresh random byte vector of the given length.
+    /// Generate fresh random bytes of the specified length.
+    ///
+    /// Panics if the RNG fails.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # #[cfg(feature = "rand")]
+    /// # {
+    /// use secure_gate::rng::DynamicRng;
+    /// let random = DynamicRng::generate(128);
+    /// # }
+    /// ```
     pub fn generate(len: usize) -> Self {
         let mut bytes = vec![0u8; len];
         OsRng
@@ -60,21 +137,19 @@ impl DynamicRng {
         Self(Dynamic::from(bytes))
     }
 
-    /// Expose the secret bytes (read-only).
+    /// Expose the random bytes for read-only access.
     #[inline(always)]
     pub fn expose_secret(&self) -> &[u8] {
         self.0.expose_secret()
     }
 
-    /// Returns the length of the random byte vector.
-    /// This is public metadata — does **not** expose the secret.
+    /// Returns the length in bytes.
     #[inline(always)]
     pub const fn len(&self) -> usize {
         self.0.len()
     }
 
-    /// Returns true if the random byte vector is empty.
-    /// This is public metadata — does **not** expose the secret.
+    /// Returns `true` if empty.
     #[inline(always)]
     pub const fn is_empty(&self) -> bool {
         self.0.is_empty()

@@ -4,15 +4,39 @@
 
 /// Creates a type alias for a fixed-size secure secret.
 ///
+/// This macro generates a type alias to `Fixed<[u8; N]>` with optional visibility.
+/// The generated type inherits all methods from `Fixed`, including `.expose_secret()`.
+///
+/// # Syntax
+///
+/// - `fixed_alias!(Name, size);` — public alias
+/// - `fixed_alias!(vis Name, size);` — custom visibility (e.g., `pub(crate)`)
+///
 /// # Examples
 ///
+/// Basic public alias:
+/// ```
+/// use secure_gate::fixed_alias;
+/// fixed_alias!(Aes256Key, 32);
+/// let key = Aes256Key::new([0u8; 32]);
+/// assert_eq!(key.len(), 32);
+/// ```
+///
+/// With custom visibility:
 /// ```
 /// use secure_gate::fixed_alias;
 ///
-/// fixed_alias!(Aes256Key, 32);                    // pub by default
-/// fixed_alias!(pub(crate) InternalKey, 64);       // crate-internal
-/// fixed_alias!(pub(in super) ParentKey, 16);      // only parent module
+/// // crate-visible only
+/// fixed_alias!(pub(crate) InternalKey, 64);
+///
+/// // visible only to the parent module (valid inside a module)
+/// // fixed_alias!(pub(in super) ModuleKey, 16);
 /// ```
+///
+/// `pub(in super)` and other path-based visibilities are fully supported
+/// when used inside real modules, but cannot be demonstrated in top-level doc-tests.
+///
+/// The generated type is zero-cost and works with all features.
 #[macro_export]
 macro_rules! fixed_alias {
     // Full visibility control
@@ -26,15 +50,25 @@ macro_rules! fixed_alias {
     };
 }
 
-/// Creates a generic fixed-size secure buffer type.
+/// Creates a generic (const-sized) fixed secure buffer type.
+///
+/// This macro generates a type alias to `Fixed<[u8; N]>` with a custom doc string.
+/// Useful for libraries providing generic secret buffers.
 ///
 /// # Examples
 ///
+/// With custom doc:
 /// ```
 /// use secure_gate::fixed_generic_alias;
+/// fixed_generic_alias!(GenericKey, "Generic secure key buffer");
+/// let key: GenericKey<32> = GenericKey::new([0u8; 32]);
+/// ```
 ///
-/// fixed_generic_alias!(GenericKey, "My custom fixed-size key");
-/// fixed_generic_alias!(Buffer); // uses default doc
+/// Default doc and visibility:
+/// ```
+/// use secure_gate::fixed_generic_alias;
+/// fixed_generic_alias!(pub(crate) Buffer);
+/// let buf: Buffer<16> = Buffer::new([0u8; 16]);
 /// ```
 #[macro_export]
 macro_rules! fixed_generic_alias {
@@ -56,7 +90,20 @@ macro_rules! fixed_generic_alias {
 
 /// Creates a type alias for a random-only fixed-size secret.
 ///
-/// Can only be instantiated via cryptographically secure RNG.
+/// This macro generates a type alias to `FixedRng<N>`, which can only be
+/// instantiated via `.generate()` (requires the "rand" feature).
+///
+/// # Examples
+///
+/// ```
+/// # #[cfg(feature = "rand")]
+/// # {
+/// use secure_gate::fixed_alias_rng;
+/// fixed_alias_rng!(MasterKey, 32);
+/// let key = MasterKey::generate();
+/// assert_eq!(key.len(), 32);
+/// # }
+/// ```
 #[macro_export]
 macro_rules! fixed_alias_rng {
     ($vis:vis $name:ident, $size:literal) => {
@@ -69,6 +116,15 @@ macro_rules! fixed_alias_rng {
 }
 
 /// Creates a type alias for a heap-allocated secure secret.
+///
+/// # Examples
+///
+/// ```
+/// use secure_gate::dynamic_alias;
+/// dynamic_alias!(Password, String);
+/// let pw: Password = "hunter2".into();
+/// assert_eq!(pw.expose_secret(), "hunter2");
+/// ```
 #[macro_export]
 macro_rules! dynamic_alias {
     ($vis:vis $name:ident, $inner:ty) => {
@@ -81,6 +137,15 @@ macro_rules! dynamic_alias {
 }
 
 /// Creates a generic heap-allocated secure secret type alias.
+///
+/// # Examples
+///
+/// ```
+/// use secure_gate::dynamic_generic_alias;
+/// dynamic_generic_alias!(SecureVec, Vec<u8>, "Secure dynamic byte vector");
+/// let vec = SecureVec::new(vec![1, 2, 3]);
+/// assert_eq!(vec.len(), 3);
+/// ```
 #[macro_export]
 macro_rules! dynamic_generic_alias {
     ($vis:vis $name:ident, $inner:ty, $doc:literal) => {
