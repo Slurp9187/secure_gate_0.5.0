@@ -81,13 +81,39 @@ impl Dynamic<String> {
         s.shrink_to_fit();
         s
     }
+
+    /// Returns the length of the secret string in bytes (UTF-8).
+    /// This is public metadata — does **not** expose the secret.
+    #[inline(always)]
+    pub const fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the secret string is empty.
+    #[inline(always)]
+    pub const fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
 }
 
-impl Dynamic<Vec<u8>> {
-    pub fn finish_mut(&mut self) -> &mut Vec<u8> {
+impl<T> Dynamic<Vec<T>> {
+    pub fn finish_mut(&mut self) -> &mut Vec<T> {
         let v = &mut *self.0;
         v.shrink_to_fit();
         v
+    }
+
+    /// Returns the length of the secret vector in elements.
+    /// This is public metadata — does **not** expose the secret.
+    #[inline(always)]
+    pub const fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the secret vector is empty.
+    #[inline(always)]
+    pub const fn is_empty(&self) -> bool {
+        self.0.is_empty()
     }
 }
 

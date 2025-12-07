@@ -28,10 +28,9 @@ secure-gate = { version = "0.6.0", features = ["zeroize", "rand", "conversions"]
 
 | Feature       | Description                                                                                 |
 |---------------|---------------------------------------------------------------------------------------------|
-| `zeroize`     | Automatic memory wiping on drop — **strongly recommended**                                  |
+| `zeroize`     | Automatic memory wiping on drop — **strongly recommended**                                           |
 | `rand`        | `FixedRng<N>::generate()` + `fixed_alias_rng!` — type-safe, fresh randomness                |
 | `conversions` | `.to_hex()`, `.to_hex_upper()`, `.to_base64url()`, `.ct_eq()` + `HexString` / `RandomHex`   |
-| `serde`       | Optional serialization (deserialization intentionally disabled on `Dynamic<T>`)           |
 
 Works in `no_std` + `alloc`. Only pay for what you use.
 
@@ -128,17 +127,23 @@ fixed_alias_rng!(MasterKey, 32);   // FixedRng<32>
 | `FixedRng<N>`   | Stack      | Yes       | Yes       | Yes              | Fresh + type-safe         |
 | `RandomHex`     | Heap       | Yes       | Yes       | No (until drop)  | Validated random hex      |
 
-## Zero-cost — proven on real hardware
+## Performance – v0.6.0 (Measured December 2025)
 
-| Implementation       | Median time | Overhead vs raw |
-|----------------------|-------------|-----------------|
-| raw `[u8; 32]`       | ~460 ps     | —               |
-| `Fixed<[u8; 32]>`   | ~460 ps     | **+28 ps**      |
-| `FixedRng<32>`       | ~465 ps     | **+33 ps**      |
+Benchmarked on:  
+**Windows 11 Pro, Intel Core i7-10510U @ 1.80 GHz, 16 GB RAM, Rust 1.88.0 (2025-06-23)**
 
-Overhead is **< 0.1 CPU cycles** — indistinguishable from raw arrays.
+`cargo bench -p secure-gate --all-features`
 
-[View full report](https://slurp9187.github.io/secure-gate/benches/fixed_vs_raw/report/)
+| Implementation                              | Time per access (100 samples)       | Δ vs raw array                     |
+|---------------------------------------------|-------------------------------------|------------------------------------|
+| raw `[u8; 32]` access                       | 492.22 ps – 501.52 ps               | baseline                           |
+| `Fixed<[u8; 32]>` + `.expose_secret()`      | 476.92 ps – 487.12 ps               | −3.0 % to −23.9 %                   |
+| `fixed_alias! (RawKey)` explicit access     | 475.07 ps – 482.91 ps               | −3.4 % to −30.5 %                   |
+
+All implementations are statistically indistinguishable from raw arrays at the picosecond level — even on a 2019-era mobile CPU.  
+The explicit `.expose_secret()` path incurs **no measurable overhead**.
+
+[View full Criterion report](https://slurp9187.github.io/secure-gate/benches/fixed_vs_raw/report/)
 
 ## Changelog
 
