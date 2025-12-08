@@ -362,7 +362,16 @@ fn fixed_alias_rng_single_byte() {
     
     let r = SingleRng::generate();
     assert_eq!(r.len(), 1);
-    assert!(*r.expose_secret() != [0u8]);
+    // Generate multiple times to verify randomness (single byte has 1/256 chance of being zero)
+    let mut found_non_zero = false;
+    for _ in 0..10 {
+        let test_rng = SingleRng::generate();
+        if test_rng.expose_secret()[0] != 0 {
+            found_non_zero = true;
+            break;
+        }
+    }
+    assert!(found_non_zero, "Generated 10 single-byte values, all were zero (statistically very unlikely)");
 }
 
 #[cfg(feature = "rand")]

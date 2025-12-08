@@ -27,6 +27,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   let key: Fixed<[u8; 32]> = Fixed::generate_random();
   let random: Dynamic<Vec<u8>> = Dynamic::generate_random(64);
   ```
+- **Explicit zeroization method**: `zeroize_now()` on all secure types (`Fixed`, `Dynamic`, `FixedNoClone`, `DynamicNoClone`) for immediate memory wiping when the `zeroize` feature is enabled
+  ```rust
+  #[cfg(feature = "zeroize")]
+  {
+      let mut key = Fixed::new([42u8; 32]);
+      // ... use key ...
+      key.zeroize_now();  // Explicit wipe - makes intent clear
+  }
+  ```
+- **Hex and base64url constructors**: `Fixed::<[u8; N]>::from_hex()` and `Fixed::<[u8; N]>::from_base64url()` for creating secrets from encoded strings (requires `conversions` feature)
+  ```rust
+  #[cfg(feature = "conversions")]
+  {
+      let key = Fixed::<[u8; 32]>::from_hex("deadbeef...")?;
+      let key2 = Fixed::<[u8; 32]>::from_base64url("base64url...")?;
+  }
+  ```
+  - Both methods are memory-hardened: temporary buffers are zeroized on error or after successful copy
 
 ### Changed
 
@@ -56,6 +74,8 @@ fixed_alias!(pub(crate) Internal, 64); // Crate-visible type
 ### Fixed
 
 - **Macro recursion**: Removed unnecessary recursive call in `dynamic_generic_alias!` macro, making it consistent with `fixed_generic_alias!` pattern
+- **Memory leak in hex/base64url constructors**: Fixed potential memory leak where temporary `Vec<u8>` buffers in `from_hex()` and `from_base64url()` were not zeroized on error or after successful copy. Both methods now explicitly zeroize temporary buffers when the `zeroize` feature is enabled.
+- **Flaky RNG test**: Fixed `dynamic_rng_single_byte` test that could fail due to 1/256 chance of generating a zero byte. Test now generates multiple values to verify randomness.
 
 ### Improved
 

@@ -140,6 +140,30 @@ For convenience, you can generate random secrets directly without going through 
 }
 ```
 
+### Creating Secrets from Encoded Strings
+
+You can create `Fixed<[u8; N]>` secrets directly from hex or base64url strings:
+
+```rust
+#[cfg(feature = "conversions")]
+{
+    use secure_gate::Fixed;
+    
+    // From hex string
+    let key = Fixed::<[u8; 4]>::from_hex("deadbeef").unwrap();
+    assert_eq!(key.expose_secret(), &[0xde, 0xad, 0xbe, 0xef]);
+    
+    // From base64url string (no padding)
+    use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+    use base64::Engine;
+    let b64 = URL_SAFE_NO_PAD.encode([0xde, 0xad, 0xbe, 0xef]);
+    let key2 = Fixed::<[u8; 4]>::from_base64url(&b64).unwrap();
+    assert_eq!(key2.expose_secret(), &[0xde, 0xad, 0xbe, 0xef]);
+}
+```
+
+Both methods are memory-hardened: temporary buffers are automatically zeroized on error or after successful copy (when `zeroize` feature is enabled).
+
 **Why `.expose_secret()` is required**  
 Every secret access is loud, grep-able, and auditable. There are **no** methods on the wrapper types that expose bytes directly. The security model is strictly enforced: `Fixed<T>`, `Dynamic<T>`, `FixedNoClone<T>`, and `DynamicNoClone<T>` do not provide `into_inner()` methods that would bypass the explicit exposure requirement. This ensures all secret access is traceable and prevents accidental security violations.
 
@@ -167,7 +191,28 @@ dynamic_alias!(pub Password, String);       // Public type
 | `Fixed<T>` | Stack | Yes | Yes | Yes (no heap) | Zero-cost |  
 | `Dynamic<T>` | Heap | Yes | Yes | No (until drop) | Use `expose_secret_mut().shrink_to_fit()` |  
 | `FixedRng<N>` | Stack | Yes | Yes | Yes | Fresh + type-safe |  
-| `RandomHex` | Heap | Yes | Yes | No (until drop) | Validated random hex |  
+| `RandomHex` | Heap | Yes | Yes | No (until drop) | Validated random hex |
+
+### Explicit Zeroization
+
+When the `zeroize` feature is enabled, you can explicitly zeroize secrets immediately:
+
+```rust
+#[cfg(feature = "zeroize")]
+{
+    use secure_gate::{Fixed, Dynamic};
+    
+    let mut key = Fixed::new([42u8; 32]);
+    // ... use key ...
+    key.zeroize_now();  // Explicit wipe - makes intent clear
+    
+    let mut password = Dynamic::<String>::new("secret".to_string());
+    // ... use password ...
+    password.zeroize_now();  // Immediate memory wipe
+}
+```
+
+This is useful when you want to wipe memory before the value goes out of scope, or when you want to make the zeroization intent explicit in the code.  
 
 ## Performance (Measured December 2025)  
 Benchmarked on:  
