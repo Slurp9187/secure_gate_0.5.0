@@ -150,14 +150,6 @@ impl<T> DynamicNoClone<Vec<T>> {
     pub const fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
-
-    /// Returns a shared slice of the secret bytes.
-    ///
-    /// Requires explicit intent — consistent with the crate's philosophy.
-    #[inline(always)]
-    pub fn as_slice(&self) -> &[T] {
-        self.expose_secret()
-    }
 }
 
 #[cfg(feature = "zeroize")]
