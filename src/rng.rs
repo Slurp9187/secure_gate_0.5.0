@@ -30,7 +30,7 @@ use rand::TryRngCore;
 /// # #[cfg(feature = "rand")]
 /// # {
 /// use secure_gate::fixed_alias_rng;
-/// fixed_alias_rng!(Nonce, 24);
+/// fixed_alias_rng!(pub Nonce, 24);  // Visibility required
 /// let nonce = Nonce::generate();
 /// # }
 /// ```
@@ -181,6 +181,20 @@ impl DynamicRng {
     }
 
     /// Expose the random bytes for read-only access.
+    ///
+    /// This is the **only** way to read the secret — loud and auditable.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # #[cfg(feature = "rand")]
+    /// # {
+    /// use secure_gate::rng::DynamicRng;
+    /// let random = DynamicRng::generate(64);
+    /// let bytes = random.expose_secret();
+    /// assert_eq!(bytes.len(), 64);
+    /// # }
+    /// ```
     #[inline(always)]
     pub fn expose_secret(&self) -> &[u8] {
         self.0.expose_secret()

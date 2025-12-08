@@ -22,7 +22,7 @@ use zeroize::Zeroize;
 ///
 /// ```
 /// # use secure_gate::{fixed_alias, SecureConversionsExt};
-/// fixed_alias!(Aes256Key, 32);
+/// fixed_alias!(pub Aes256Key, 32);  // Visibility required
 /// let key = Aes256Key::from([0x42u8; 32]);
 /// let hex = key.expose_secret().to_hex();         // → "424242..."
 /// let b64 = key.expose_secret().to_base64url();   // URL-safe, no padding
@@ -133,6 +133,9 @@ impl HexString {
         }
 
         // Work directly on the underlying bytes – no copies
+        // SAFETY: `String::as_mut_vec()` is unstable but safe. We only modify bytes
+        // within the string's valid UTF-8 range, and we validate all changes maintain
+        // UTF-8 validity (only ASCII hex digits are modified).
         let bytes = unsafe { s.as_mut_vec() };
         let mut valid = true;
         for b in bytes.iter_mut() {
@@ -253,7 +256,7 @@ impl<const N: usize> crate::rng::FixedRng<N> {
     ///
     /// ```
     /// # use secure_gate::{fixed_alias_rng, conversions::RandomHex};
-    /// fixed_alias_rng!(BackupCode, 16);
+    /// fixed_alias_rng!(pub BackupCode, 16);  // Visibility required
     /// let hex: RandomHex = BackupCode::random_hex();
     /// println!("backup code: {}", hex.expose_secret());
     /// ```

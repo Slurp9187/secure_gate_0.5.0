@@ -26,7 +26,7 @@ use core::fmt;
 /// For byte arrays (most common):
 /// ```
 /// use secure_gate::{Fixed, fixed_alias};
-/// fixed_alias!(Aes256Key, 32);
+/// fixed_alias!(pub Aes256Key, 32);  // Visibility required
 /// let key_bytes = [0x42u8; 32];
 /// let key: Aes256Key = Fixed::from(key_bytes);
 /// assert_eq!(key.len(), 32);

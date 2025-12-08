@@ -68,12 +68,33 @@ impl<T> FixedNoClone<T> {
     }
 
     /// Expose the inner value for read-only access.
+    ///
+    /// This is the **only** way to read the secret — loud and auditable.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use secure_gate::FixedNoClone;
+    /// let secret = FixedNoClone::new([42u8; 32]);
+    /// assert_eq!(secret.expose_secret()[0], 42);
+    /// ```
     #[inline(always)]
     pub const fn expose_secret(&self) -> &T {
         &self.0
     }
 
     /// Expose the inner value for mutable access.
+    ///
+    /// This is the **only** way to mutate the secret — loud and auditable.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use secure_gate::FixedNoClone;
+    /// let mut secret = FixedNoClone::new([1u8, 2, 3]);
+    /// secret.expose_secret_mut()[0] = 99;
+    /// assert_eq!(secret.expose_secret()[0], 99);
+    /// ```
     #[inline(always)]
     pub fn expose_secret_mut(&mut self) -> &mut T {
         &mut self.0
@@ -97,12 +118,33 @@ impl<T: ?Sized> DynamicNoClone<T> {
     }
 
     /// Expose the inner value for read-only access.
+    ///
+    /// This is the **only** way to read the secret — loud and auditable.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use secure_gate::DynamicNoClone;
+    /// let secret = DynamicNoClone::new(Box::new("hunter2".to_string()));
+    /// assert_eq!(secret.expose_secret(), "hunter2");
+    /// ```
     #[inline(always)]
     pub const fn expose_secret(&self) -> &T {
         &self.0
     }
 
     /// Expose the inner value for mutable access.
+    ///
+    /// This is the **only** way to mutate the secret — loud and auditable.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use secure_gate::DynamicNoClone;
+    /// let mut secret = DynamicNoClone::new(Box::new("hello".to_string()));
+    /// secret.expose_secret_mut().push_str(" world");
+    /// assert_eq!(secret.expose_secret(), "hello world");
+    /// ```
     #[inline(always)]
     pub fn expose_secret_mut(&mut self) -> &mut T {
         &mut self.0

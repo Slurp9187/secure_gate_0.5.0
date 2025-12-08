@@ -57,6 +57,20 @@ fixed_alias!(pub(crate) Internal, 64); // Crate-visible type
 
 - **Macro recursion**: Removed unnecessary recursive call in `dynamic_generic_alias!` macro, making it consistent with `fixed_generic_alias!` pattern
 
+### Improved
+
+- **Test suite reorganization**: Consolidated and reorganized test files for better maintainability
+  - Merged redundant test files: consolidated 13 test files into 7 well-organized files
+  - Renamed test files for clarity: `*_edge_cases_tests.rs` → `*_tests.rs` (e.g., `fixed_edge_cases_tests.rs` → `fixed_tests.rs`)
+  - Eliminated test duplication while maintaining comprehensive coverage (318 total tests)
+  - Improved test organization: each file now covers one area comprehensively
+- **Documentation improvements**: Enhanced rust-doc across all source files
+  - Updated all macro examples to show explicit visibility requirements (`pub` visibility)
+  - Added comprehensive documentation for `expose_secret()` and `expose_secret_mut()` methods in `FixedNoClone` and `DynamicNoClone`
+  - Enhanced unsafe block documentation in `conversions.rs` with detailed safety explanations
+  - All doc examples now compile and pass (52 doc tests)
+  - Improved consistency and clarity across all public API documentation
+
 ### Why
 
 - Improves consistency with Rust's explicit visibility philosophy
