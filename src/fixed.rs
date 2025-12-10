@@ -187,18 +187,18 @@ impl<T: Clone> Clone for Fixed<T> {
 // REMOVED: Copy impl for Fixed<[u8; N]>
 // Implicit copying of secrets is a footgun — duplication must be intentional.
 
-// Constant-time equality — only available with `conversions` feature
-#[cfg(feature = "conversions")]
+// Constant-time equality — only available with `ct-eq` feature
+#[cfg(feature = "ct-eq")]
 impl<const N: usize> Fixed<[u8; N]> {
     /// Constant-time equality comparison.
     ///
     /// This is the **only safe way** to compare two fixed-size secrets.
-    /// Available only when the `conversions` feature is enabled.
+    /// Available only when the `ct-eq` feature is enabled.
     ///
     /// # Example
     ///
     /// ```
-    /// # #[cfg(feature = "conversions")]
+    /// # #[cfg(feature = "ct-eq")]
     /// # {
     /// use secure_gate::Fixed;
     /// let a = Fixed::new([1u8; 32]);

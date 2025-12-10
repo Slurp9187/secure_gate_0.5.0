@@ -5,6 +5,28 @@ All changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),  
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.2] - 2025-12-07
+
+### Added
+
+- **New `ct-eq` feature**: Constant-time equality operations can now be used independently of format conversions
+  - `ct_eq()` is now gated by the `ct-eq` feature (semantically correct)
+  - Users can enable just `ct-eq` if they only need constant-time comparisons without hex/base64 encoding
+
+### Changed
+
+- **`conversions` feature now includes `ct-eq` as a dependency**: Backward compatible - existing code using `features = ["conversions"]` continues to work
+  - `conversions` feature automatically enables `ct-eq` via dependency
+  - All format conversion methods (`.to_hex()`, `.to_hex_upper()`, `.to_base64url()`) remain in `conversions`
+  - `ct_eq()` is now semantically separated but still available via `conversions`
+
+### Fixed
+
+- **CRITICAL**: Fixed `zeroize::Zeroize` import in `conversions.rs` to be conditional on `zeroize` feature
+  - Previously, the import was gated by `conversions` only, which would cause compilation failure when `conversions` was enabled without `zeroize`
+  - Now uses fully qualified path `zeroize::Zeroize::zeroize()` in the conditional block
+  - This allows `conversions` feature to work correctly with or without `zeroize` enabled
+
 ## [0.6.1] - 2025-12-07
 
 ### Security

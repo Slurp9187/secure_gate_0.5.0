@@ -2,7 +2,9 @@
 // src/conversions.rs
 // ==========================================================================
 
-#![cfg_attr(not(feature = "zeroize"), forbid(unsafe_code))]
+// Allow unsafe_code when conversions is enabled (needed for hex string validation)
+// but forbid it when neither conversions nor zeroize is enabled
+#![cfg_attr(not(any(feature = "zeroize", feature = "conversions")), forbid(unsafe_code))]
 
 #[cfg(feature = "conversions")]
 use alloc::string::String;
@@ -10,8 +12,6 @@ use alloc::string::String;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 #[cfg(feature = "conversions")]
 use base64::Engine;
-#[cfg(feature = "conversions")]
-use zeroize::Zeroize;
 
 /// Extension trait for safe, explicit conversions of secret byte data.
 ///
@@ -21,71 +21,87 @@ use zeroize::Zeroize;
 /// # Example
 ///
 /// ```
+/// # #[cfg(feature = "conversions")]
+/// # {
 /// # use secure_gate::{fixed_alias, SecureConversionsExt};
-/// fixed_alias!(Aes256Key, 32);
-/// let key = Aes256Key::from([0x42u8; 32]);
-/// let hex = key.expose_secret().to_hex();         // → "424242..."
-/// let b64 = key.expose_secret().to_base64url();   // URL-safe, no padding
+/// # fixed_alias!(Aes256Key, 32);
+/// # let key = Aes256Key::from([0x42u8; 32]);
+/// # let hex = key.expose_secret().to_hex();         // → "424242..."
+/// # let b64 = key.expose_secret().to_base64url();   // URL-safe, no padding
 /// # assert_eq!(hex, "4242424242424242424242424242424242424242424242424242424242424242");
+/// # }
 /// ```
-#[cfg(feature = "conversions")]
+// Trait is available when either conversions or ct-eq is enabled
+#[cfg(any(feature = "conversions", feature = "ct-eq"))]
 pub trait SecureConversionsExt {
     /// Encode secret bytes as lowercase hexadecimal.
+    #[cfg(feature = "conversions")]
     fn to_hex(&self) -> String;
 
     /// Encode secret bytes as uppercase hexadecimal.
+    #[cfg(feature = "conversions")]
     fn to_hex_upper(&self) -> String;
 
     /// Encode secret bytes as URL-safe base64 (no padding).
+    #[cfg(feature = "conversions")]
     fn to_base64url(&self) -> String;
 
     /// Constant-time equality comparison.
     ///
     /// Returns `true` if the two secrets are equal, `false` otherwise.
     /// Uses `subtle::ConstantTimeEq` under the hood – safe against timing attacks.
+    #[cfg(feature = "ct-eq")]
     fn ct_eq(&self, other: &Self) -> bool;
 }
 
-#[cfg(feature = "conversions")]
+#[cfg(any(feature = "conversions", feature = "ct-eq"))]
 impl SecureConversionsExt for [u8] {
+    #[cfg(feature = "conversions")]
     #[inline(always)]
     fn to_hex(&self) -> String {
         hex::encode(self)
     }
 
+    #[cfg(feature = "conversions")]
     #[inline(always)]
     fn to_hex_upper(&self) -> String {
         hex::encode_upper(self)
     }
 
+    #[cfg(feature = "conversions")]
     #[inline(always)]
     fn to_base64url(&self) -> String {
         URL_SAFE_NO_PAD.encode(self)
     }
 
+    #[cfg(feature = "ct-eq")]
     #[inline(always)]
     fn ct_eq(&self, other: &Self) -> bool {
         subtle::ConstantTimeEq::ct_eq(self, other).into()
     }
 }
 
-#[cfg(feature = "conversions")]
+#[cfg(any(feature = "conversions", feature = "ct-eq"))]
 impl<const N: usize> SecureConversionsExt for [u8; N] {
+    #[cfg(feature = "conversions")]
     #[inline(always)]
     fn to_hex(&self) -> String {
         hex::encode(self)
     }
 
+    #[cfg(feature = "conversions")]
     #[inline(always)]
     fn to_hex_upper(&self) -> String {
         hex::encode_upper(self)
     }
 
+    #[cfg(feature = "conversions")]
     #[inline(always)]
     fn to_base64url(&self) -> String {
         URL_SAFE_NO_PAD.encode(self)
     }
 
+    #[cfg(feature = "ct-eq")]
     #[inline(always)]
     fn ct_eq(&self, other: &Self) -> bool {
         subtle::ConstantTimeEq::ct_eq(self.as_slice(), other.as_slice()).into()
@@ -167,12 +183,17 @@ impl HexString {
 // Private helper – wipes rejected input when `zeroize` is enabled
 #[cfg(feature = "conversions")]
 #[inline(always)]
+#[allow(clippy::ptr_arg)] // Need &mut String for as_mut_vec()
 fn zeroize_input(s: &mut String) {
     #[cfg(feature = "zeroize")]
     {
         // SAFETY: String's internal buffer is valid for writes of its current length
         let vec = unsafe { s.as_mut_vec() };
-        vec.zeroize();
+        zeroize::Zeroize::zeroize(vec);
+    }
+    #[cfg(not(feature = "zeroize"))]
+    {
+        let _ = s; // Suppress unused variable warning when zeroize is disabled
     }
 }
 

@@ -169,8 +169,8 @@ impl From<&str> for Dynamic<String> {
     }
 }
 
-// Constant-time equality — only available with `conversions` feature
-#[cfg(feature = "conversions")]
+// Constant-time equality — only available with `ct-eq` feature
+#[cfg(feature = "ct-eq")]
 impl<T> Dynamic<T>
 where
     T: ?Sized + AsRef<[u8]>,

@@ -2,7 +2,8 @@
 // src/lib.rs
 // ==========================================================================
 
-#![cfg_attr(not(feature = "zeroize"), forbid(unsafe_code))]
+// Allow unsafe_code when conversions or zeroize is enabled (conversions needs it for hex validation)
+#![cfg_attr(not(any(feature = "zeroize", feature = "conversions")), forbid(unsafe_code))]
 #![doc = include_str!("../README.md")]
 
 extern crate alloc;
@@ -25,7 +26,8 @@ mod macros;
 #[cfg(feature = "rand")]
 pub mod rng;
 
-#[cfg(feature = "conversions")]
+// conversions module is needed for ct-eq feature (SecureConversionsExt trait)
+#[cfg(any(feature = "conversions", feature = "ct-eq"))]
 pub mod conversions;
 
 // ── Feature-gated re-exports ─────────────────────────────────────────
@@ -33,4 +35,10 @@ pub mod conversions;
 pub use rng::{DynamicRng, FixedRng};
 
 #[cfg(feature = "conversions")]
-pub use conversions::{HexString, RandomHex, SecureConversionsExt};
+pub use conversions::HexString;
+
+#[cfg(any(feature = "conversions", feature = "ct-eq"))]
+pub use conversions::SecureConversionsExt;
+
+#[cfg(all(feature = "rand", feature = "conversions"))]
+pub use conversions::RandomHex;

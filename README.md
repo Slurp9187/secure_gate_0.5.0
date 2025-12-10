@@ -12,12 +12,12 @@ When the `zeroize` feature is enabled, secrets are automatically wiped on drop (
 ## Installation  
 ```toml
 [dependencies]
-secure-gate = "0.6.1"
+secure-gate = "0.6.2"
 ```
 
 **Recommended (maximum safety + ergonomics):**  
 ```toml
-secure-gate = { version = "0.6.1", features = ["zeroize", "rand", "conversions"] }
+secure-gate = { version = "0.6.2", features = ["zeroize", "rand", "conversions"] }
 ```
 
 ## Features  
@@ -25,7 +25,8 @@ secure-gate = { version = "0.6.1", features = ["zeroize", "rand", "conversions"]
 |---------------|---------------------------------------------------------------------------------------------|  
 | `zeroize` | Automatic memory wiping on drop – **strongly recommended** |  
 | `rand` | `FixedRng<N>::generate()` + `fixed_alias_rng!` – type-safe, fresh randomness |  
-| `conversions` | `.to_hex()`, `.to_hex_upper()`, `.to_base64url()`, `.ct_eq()` + `HexString` / `RandomHex` |  
+| `ct-eq` | `.ct_eq()` – constant-time equality comparison |  
+| `conversions` | `.to_hex()`, `.to_hex_upper()`, `.to_base64url()` + `HexString` / `RandomHex` |  
 
 Works in `no_std` + `alloc`. Only pay for what you use.
 
@@ -136,9 +137,11 @@ For convenience, you can generate random secrets directly without going through 
     let other = Aes256Key::generate();
     let hex = key.expose_secret().to_hex();          // "a1b2c3d4..."
     let b64 = key.expose_secret().to_base64url();    // URL-safe, no padding  
-    let same = key.expose_secret().ct_eq(other.expose_secret()); // Constant-time
+    let same = key.expose_secret().ct_eq(other.expose_secret()); // Constant-time (via ct-eq, included in conversions)
 }
 ```
+
+**Note:** `ct_eq()` is also available independently via the `ct-eq` feature if you only need constant-time comparisons without format conversions.
 
 **Why `.expose_secret()` is required**  
 Every secret access is loud, grep-able, and auditable. There are **no** methods on the wrapper types that expose bytes directly. The security model is strictly enforced: `Fixed<T>`, `Dynamic<T>`, `FixedNoClone<T>`, and `DynamicNoClone<T>` do not provide `into_inner()` methods that would bypass the explicit exposure requirement. This ensures all secret access is traceable and prevents accidental security violations.
@@ -192,5 +195,5 @@ The explicit `.expose_secret()` path incurs **no measurable overhead**.
 MIT OR Apache-2.0  
 
 ---
-**v0.6.1 adds ergonomic RNG conversions and convenience methods while maintaining strict security guarantees.**  
+**v0.6.2 adds semantic feature separation (`ct-eq` independent of `conversions`) and maintains strict security guarantees.**  
 All secret access is explicit. No silent leaks remain. **Security fix**: Removed `into_inner()` from `Fixed`/`Dynamic` types to enforce the security model. Use `expose_secret()` or `expose_secret_mut()` for all secret access.
